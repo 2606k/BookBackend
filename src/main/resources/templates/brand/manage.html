@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>品牌管理 - 后台管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background-color: #343a40;
+            padding-top: 20px;
+        }
+        .sidebar .nav-link {
+            color: #adb5bd;
+            margin: 5px 15px;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover {
+            color: #fff;
+            background-color: #495057;
+        }
+        .sidebar .nav-link.active {
+            color: #fff;
+            background-color: #007bff;
+        }
+        .main-content {
+            padding: 20px;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn-primary {
+            background-color: #3f51b5;
+            border-color: #3f51b5;
+        }
+        .btn-primary:hover {
+            background-color: #303f9f;
+            border-color: #303f9f;
+        }
+        .brand-image {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 5px;
+        }
+        .table th {
+            background-color: #f8f9fa;
+            border-top: none;
+        }
+        .category-badge {
+            background-color: #e3f2fd;
+            color: #1976d2;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 侧边栏 -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <h5 class="text-white">维修管理系统</h5>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/user/dashboard">
+                                <i class="bi bi-house-door"></i> 控制台
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/category/manage">
+                                <i class="bi bi-tags"></i> 分类管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/brand/manage">
+                                <i class="bi bi-award"></i> 品牌管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/user/appointments">
+                                <i class="bi bi-calendar-check"></i> 预约记录
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/user/login" onclick="return confirm('确定要退出吗？')">
+                                <i class="bi bi-box-arrow-right"></i> 退出登录
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- 主内容区 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <!-- 顶部导航 -->
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">品牌管理</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBrandModal">
+                            <i class="bi bi-plus-lg"></i> 添加品牌
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 筛选器 -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <label for="categoryFilter" class="form-label">按分类筛选：</label>
+                                <select class="form-select" id="categoryFilter" onchange="filterByCategory()">
+                                    <option value="">全部分类</option>
+                                    <option th:each="category : ${categories}" 
+                                            th:value="${category.servicetypeid}" 
+                                            th:text="${category.name}">分类名称</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-outline-secondary" onclick="refreshData()">
+                                    <i class="bi bi-arrow-clockwise"></i> 刷新数据
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 品牌列表 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">品牌列表</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+<!--                                        <th>ID</th>-->
+                                        <th>品牌名称</th>
+                                        <th>所属分类</th>
+                                        <th>品牌图片</th>
+                                        <th>创建时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="brandTable">
+                                    <tr th:each="brand : ${brands}">
+<!--                                        <td th:text="${brand.id}">1</td>-->
+                                        <td th:text="${brand.name}">品牌名称</td>
+                                        <td>
+                                            <span class="category-badge" th:each="category : ${categories}" 
+                                                  th:if="${category.servicetypeid == brand.categoryId}" 
+                                                  th:text="${category.name}">分类名称</span>
+<!--                                            <span class="text-muted" th:unless="${categories.?[serviceTypeId == brand.categoryId][0] != null}">未知分类</span>-->
+                                        </td>
+                                        <td>
+                                            <img th:if="${brand.imageurl != null and !#strings.isEmpty(brand.imageurl)}" 
+                                                 th:src="${brand.imageurl}" 
+                                                 class="brand-image" 
+                                                 alt="品牌图片">
+                                            <span th:unless="${brand.imageurl != null and !#strings.isEmpty(brand.imageurl)}" 
+                                                  class="text-muted">无图片</span>
+                                        </td>
+                                        <td th:text="${#dates.format(brand.createdat, 'yyyy-MM-dd HH:mm')}">2024-01-01 12:00</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" 
+                                                    th:onclick="'deleteBrand(' + ${brand.id} + ')'">
+                                                <i class="bi bi-trash"></i> 删除
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="emptyMessage" class="text-center text-muted" th:if="${#lists.isEmpty(brands)}">
+                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                            <p class="mt-2">暂无品牌数据</p>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 添加品牌模态框 -->
+    <div class="modal fade" id="addBrandModal" tabindex="-1" aria-labelledby="addBrandModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addBrandModalLabel">添加品牌</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="addBrandForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="brandName" class="form-label">品牌名称</label>
+                            <input type="text" class="form-control" id="brandName" name="name" placeholder="请输入品牌名称" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="brandCategory" class="form-label">所属分类</label>
+                            <select class="form-select" id="brandCategory" name="categoryId" required>
+                                <option value="">请选择分类</option>
+                                <option th:each="category : ${categories}" 
+                                        th:value="${category.servicetypeid}" 
+                                        th:text="${category.name}">分类名称</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="brandImageFile" class="form-label">上传品牌图片</label>
+                            <input type="file" class="form-control" id="brandImageFile" accept="image/*">
+                            <div class="form-text">支持 JPG、PNG、GIF 格式</div>
+                            <div id="brandUploadProgress" class="mt-2" style="display: none;">
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                                <small class="text-muted">上传中...</small>
+                            </div>
+                            <div id="brandImagePreview" class="mt-2" style="display: none;">
+                                <img id="brandPreviewImg" src="" alt="预览图" style="max-width: 100px; max-height: 100px; border-radius: 5px;">
+                                <p class="text-success mt-1"><i class="bi bi-check-circle"></i> 图片上传成功</p>
+                            </div>
+                        </div>
+<!--                        <div class="mb-3">-->
+<!--                            <label for="brandImage" class="form-label">品牌图片URL</label>-->
+<!--                            <input type="url" class="form-control" id="brandImage" name="imageurl" placeholder="图片链接（自动生成或手动输入）" readonly>-->
+<!--                            <div class="form-text">上传图片后自动生成，也可以手动输入网络图片地址</div>-->
+<!--                            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="toggleBrandManualInput()">-->
+<!--                                <i class="bi bi-pencil"></i> 手动输入-->
+<!--                            </button>-->
+<!--                        </div>-->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary">添加</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // 文件选择事件
+            $("#brandImageFile").change(function() {
+                var file = this.files[0];
+                if (file) {
+                    uploadBrandImage(file);
+                }
+            });
+
+            // 添加品牌表单提交
+            $("#addBrandForm").submit(function(event) {
+                event.preventDefault();
+                
+                var formData = {
+                    name: $("#brandName").val(),
+                    categoryId: $("#brandCategory").val(),
+                    imageurl: $("#brandImage").val() || null
+                };
+
+                $.ajax({
+                    type: "POST",
+                    url: "/brand/add",
+                    contentType: "application/json",
+                    data: JSON.stringify(formData),
+                    success: function(response) {
+                        if (response.code === 200) {
+                            showAlert("success", "品牌添加成功！");
+                            $("#addBrandModal").modal('hide');
+                            resetBrandForm();
+                            // 刷新页面
+                            setTimeout(function() {
+                                location.reload();
+                            }, 1000);
+                        } else {
+                            showAlert("danger", response.msg || "添加失败");
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        showAlert("danger", "网络错误，请稍后重试");
+                        console.error("添加品牌错误:", error);
+                    }
+                });
+            });
+        });
+
+        // 上传品牌图片
+        function uploadBrandImage(file) {
+            var formData = new FormData();
+            formData.append('file', file);
+            
+            // 显示上传进度
+            $("#brandUploadProgress").show();
+            $("#brandImagePreview").hide();
+            
+            $.ajax({
+                type: "POST",
+                url: "/wedding/photo/upload",
+                data: formData,
+                processData: false,
+                contentType: false,
+                xhr: function() {
+                    var xhr = new window.XMLHttpRequest();
+                    xhr.upload.addEventListener("progress", function(evt) {
+                        if (evt.lengthComputable) {
+                            var percentComplete = (evt.loaded / evt.total) * 100;
+                            $("#brandUploadProgress .progress-bar").css("width", percentComplete + "%");
+                        }
+                    }, false);
+                    return xhr;
+                },
+                success: function(response) {
+                    $("#brandUploadProgress").hide();
+                    if (response.code === 200) {
+                        var imageUrl = response.data.url;
+                        $("#brandImage").val(imageUrl);
+                        $("#brandPreviewImg").attr("src", imageUrl);
+                        $("#brandImagePreview").show();
+                        showAlert("success", "图片上传成功！");
+                    } else {
+                        showAlert("danger", response.msg || "图片上传失败");
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $("#brandUploadProgress").hide();
+                    showAlert("danger", "图片上传失败，请稍后重试");
+                    console.error("图片上传错误:", error);
+                }
+            });
+        }
+
+        // 切换手动输入模式
+        function toggleBrandManualInput() {
+            var input = $("#brandImage");
+            if (input.prop("readonly")) {
+                input.prop("readonly", false);
+                input.focus();
+                showAlert("info", "现在可以手动输入图片链接");
+            } else {
+                input.prop("readonly", true);
+            }
+        }
+
+        // 重置表单
+        function resetBrandForm() {
+            $("#addBrandForm")[0].reset();
+            $("#brandUploadProgress").hide();
+            $("#brandImagePreview").hide();
+            $("#brandImage").prop("readonly", true);
+        }
+
+        // 删除品牌
+        function deleteBrand(id) {
+            if (!confirm('确定要删除这个品牌吗？删除后不可恢复！')) {
+                return;
+            }
+
+            $.ajax({
+                type: "POST",
+                url: "/brand/delete",
+                data: { id: id },
+                success: function(response) {
+                    if (response.code === 200) {
+                        showAlert("success", "品牌删除成功！");
+                        // 刷新页面
+                        setTimeout(function() {
+                            location.reload();
+                        }, 1000);
+                    } else {
+                        showAlert("danger", response.msg || "删除失败");
+                    }
+                },
+                error: function(xhr, status, error) {
+                    showAlert("danger", "网络错误，请稍后重试");
+                    console.error("删除品牌错误:", error);
+                }
+            });
+        }
+
+        // 按分类筛选
+        function filterByCategory() {
+            var categoryId = $("#categoryFilter").val();
+            var currentUrl = new URL(window.location.href);
+            
+            if (categoryId) {
+                currentUrl.searchParams.set('categoryId', categoryId);
+            } else {
+                currentUrl.searchParams.delete('categoryId');
+            }
+            
+            window.location.href = currentUrl.toString();
+        }
+
+        // 刷新数据
+        function refreshData() {
+            location.reload();
+        }
+
+        // 显示提示信息
+        function showAlert(type, message) {
+            var alertHtml = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+                           message +
+                           '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
+                           '</div>';
+            $('.main-content').prepend(alertHtml);
+            
+            // 3秒后自动关闭
+            setTimeout(function() {
+                $('.alert').alert('close');
+            }, 3000);
+        }
+
+        // 页面加载时设置筛选器的值
+        $(document).ready(function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var categoryId = urlParams.get('categoryId');
+            if (categoryId) {
+                $("#categoryFilter").val(categoryId);
+            }
+        });
+    </script>
+</body>
+</html>
