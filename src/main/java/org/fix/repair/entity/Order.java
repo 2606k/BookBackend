@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.util.Date;
+import java.util.List;
 
 @TableName(value ="Order")
 @Data
@@ -14,6 +15,18 @@ public class Order {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
+
+    /**
+     * 订单号
+     */
+    @TableField(value = "out_trade_no")
+    private String outTradeNo;
+
+    /**
+     * 交易号
+     */
+    @TableField(value = "transaction_id")
+    private String transactionId;
 
     /**
      * 购买人微信openid
@@ -33,11 +46,11 @@ public class Order {
     @TableField(value = "phone")
     private String phone;
 
-//    /**
-//     * 预约时间
-//     */
-//    @TableField(value = "time")
-//    private Date time;
+    /**
+     * 订单备注
+     */
+    @TableField(value = "remark")
+    private String remark;
 
     /**
      * 购买地址
@@ -55,12 +68,11 @@ public class Order {
      * 购买金额
      */
     @TableField(value = "money")
-    private Double money;
-
+    private Integer money;
 
 
     /**
-     * 购买状态
+     * 购买状态  0:已支付 1：申请退款 2:已退款
      */
     @TableField(value = "status")
     private String status;
@@ -78,8 +90,20 @@ public class Order {
     private String booktype;
 
     /**
+     * 支付时间
+     */
+    @TableField(value = "pay_time")
+    private Date payTime;
+
+    /**
      * 创建时间
      */
     @TableField(value = "created_at")
     private Date createdat;
+
+    /**
+     * 订单项列表（不映射到数据库）
+     */
+    @TableField(exist = false)
+    private List<OrderItem> orderItems;
 }

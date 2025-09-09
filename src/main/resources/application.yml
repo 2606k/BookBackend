@@ -31,7 +31,13 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     check-config-location: false
   mapper-locations: classpath:mapper/*.xml
-
+wxpay:
+  appid: your-appid
+  mch-id: your-mch-id
+  mch-serial-no: your-mch-serial-no
+  mch-private-key-file-path: classpath:apiclient_key.pem
+  api-v3-key: your-api-v3-key
+  notify-url: https://your-domain.com/order/notify
 gp:
   minio:
     endpointUrl: http://124.222.172.221:9000

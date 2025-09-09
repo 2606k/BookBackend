@@ -3,7 +3,6 @@ package org.fix.repair.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.fix.repair.common.R;
 import org.fix.repair.entity.appointments;
-import org.fix.repair.entity.brands;
 import org.fix.repair.mapper.AppointmentsMapper;
 import org.fix.repair.service.AppointmentsService;
 import org.springframework.web.bind.annotation.PostMapping;

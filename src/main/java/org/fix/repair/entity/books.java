@@ -8,32 +8,50 @@ import lombok.Data;
 
 import java.util.Date;
 
-@TableName(value ="brands")
+@TableName(value ="books")
 @Data
-public class brands {
+public class books {
     /**
-     * 用户唯一ID
+     * 图书ID
      */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
     /**
-     * 品牌ID
+     * 分类D
      */
     @TableField(value = "category_id")
     private Long categoryId;
 
     /**
-     * 品牌名称
+     * 图书名称
      */
-    @TableField(value = "name")
-    private String name;
+    @TableField(value = "book_name")
+    private String bookName;
 
     /**
-     * 品牌图片
+     * 图书图片
      */
     @TableField(value = "image_url")
     private String imageurl;
+
+    /**
+     * 图书价格
+     */
+    @TableField(value = "price")
+    private Integer price;
+
+    /**
+     * 图书描述
+     */
+    @TableField(value = "description")
+    private String description;
+
+    /**
+     * 图书库存
+     */
+    @TableField(value = "stock")
+    private Integer stock;
 
     /**
      *创建时间
