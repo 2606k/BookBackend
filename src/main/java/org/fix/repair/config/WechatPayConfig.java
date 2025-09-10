@@ -44,4 +44,11 @@ public class WechatPayConfig {
     public JsapiService jsapiService(Config config) {
         return new JsapiService.Builder().config(config).build();
     }
+
+    /**
+     * 获取私钥文件路径
+     */
+    public String getPrivateKeyPath() {
+        return privateKeyPath;
+    }
 }
