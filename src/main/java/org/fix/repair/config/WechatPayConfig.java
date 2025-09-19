@@ -3,6 +3,7 @@ package org.fix.repair.config;
 import com.wechat.pay.java.core.Config;
 import com.wechat.pay.java.core.RSAAutoCertificateConfig;
 import com.wechat.pay.java.service.payments.jsapi.JsapiService;
+import com.wechat.pay.java.service.refund.RefundService;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +31,9 @@ public class WechatPayConfig {
     @Value("${wxpay.notify-url}")
     private String notifyUrl;
 
+    @Value("${wxpay.refund-notify-url:}")
+    private String refundNotifyUrl;
+
     @Bean
     public Config wechatPayConfig() {
         return new RSAAutoCertificateConfig.Builder()
@@ -45,10 +49,31 @@ public class WechatPayConfig {
         return new JsapiService.Builder().config(config).build();
     }
 
+    @Bean
+    public RefundService refundService(Config config) {
+        return new RefundService.Builder().config(config).build();
+    }
+
     /**
      * 获取私钥文件路径
      */
     public String getPrivateKeyPath() {
         return privateKeyPath;
+    }
+
+    /**
+     * 获取API v3密钥
+     */
+    public String getApiV3Key() {
+        return apiV3Key;
+    }
+
+    /**
+     * 获取退款回调URL
+     */
+    public String getRefundNotifyUrl() {
+        return refundNotifyUrl != null && !refundNotifyUrl.isEmpty() 
+            ? refundNotifyUrl 
+            : notifyUrl.replace("/notify", "/refund/notify");
     }
 }

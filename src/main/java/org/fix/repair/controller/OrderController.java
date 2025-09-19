@@ -8,11 +8,12 @@ import com.wechat.pay.java.core.util.NonceUtil;
 import com.wechat.pay.java.service.payments.jsapi.JsapiService;
 import com.wechat.pay.java.service.payments.jsapi.model.*;
 import com.wechat.pay.java.service.refund.RefundService;
+import com.wechat.pay.java.service.refund.model.CreateRequest;
 import com.wechat.pay.java.service.refund.model.Refund;
-import com.wechat.pay.java.service.refund.model.RefundRequest;
 import com.wechat.pay.java.core.notification.RequestParam;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.fix.repair.common.PaySign;
 import org.fix.repair.common.R;
@@ -56,6 +57,9 @@ public class OrderController {
     
     @Autowired
     private JsapiService jsapiService;
+
+    @Autowired
+    private RefundService refundService;
 
     /**
      * 创建订单并发起支付
@@ -118,13 +122,21 @@ public class OrderController {
      */
     @PostMapping("/notify")
     @Transactional(rollbackFor = Exception.class)
-    public String payNotify(@RequestBody String notifyData,
-                           @RequestHeader("Wechatpay-Signature") String signature,
-                           @RequestHeader("Wechatpay-Timestamp") String timestamp,
-                           @RequestHeader("Wechatpay-Nonce") String nonce,
-                           @RequestHeader("Wechatpay-Serial") String serial) {
+    public String payNotify(HttpServletRequest request, @RequestBody String notifyData) {
         try {
             log.info("收到微信支付回调: {}", notifyData);
+            
+            // 获取请求头
+            String signature = request.getHeader("Wechatpay-Signature");
+            String timestamp = request.getHeader("Wechatpay-Timestamp");
+            String nonce = request.getHeader("Wechatpay-Nonce");
+            String serial = request.getHeader("Wechatpay-Serial");
+
+            // 验证必要的请求头
+            if (signature == null || timestamp == null || nonce == null || serial == null) {
+                log.error("微信支付回调缺少必要的请求头");
+                return buildFailResponse("缺少必要的请求头");
+            }
             
             // 解析回调通知
             NotificationParser parser = new NotificationParser(wechatPayConfig.wechatPayConfig());
@@ -136,46 +148,70 @@ public class OrderController {
                     .body(notifyData)
                     .build();
             
+            // 解析通知
             Notification notification = parser.parse(requestParam);
 
             // 验证通知
             if ("TRANSACTION.SUCCESS".equals(notification.getEventType())) {
-                // 获取订单信息 - 从解密后的资源中获取
-                String resourceJson = notification.getResource().toString();
-                // 解析JSON获取订单信息
-                ObjectMapper mapper = new ObjectMapper();
-                JsonNode resourceNode = mapper.readTree(resourceJson);
-                
-                String outTradeNo = resourceNode.get("out_trade_no").asText();
-                String transactionId = resourceNode.get("transaction_id").asText();
-                
-                Order order = orderService.getOne(
-                        new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo)
-                );
-                
-                if (order != null && "待支付".equals(order.getStatus())) {
-                    // 更新订单状态
-                    order.setTransactionId(transactionId);
-                    order.setStatus("0"); // 已支付
-                    order.setPayTime(new Date());
-                    orderService.updateById(order);
-                    
-                    // 扣减库存
-                    updateBookStock(order.getId());
-                    
-                    log.info("订单支付成功，订单号: {}", outTradeNo);
-                } else {
-                    log.warn("订单状态异常或订单不存在，订单号: {}, 状态: {}", 
-                            outTradeNo, order != null ? order.getStatus() : "null");
-                }
+                return handlePaymentSuccess(notification);
+            } else {
+                log.warn("收到非成功支付事件: {}", notification.getEventType());
+                return buildSuccessResponse();
             }
 
-            // 返回成功响应
-            return "{\"code\":\"SUCCESS\",\"message\":\"成功\"}";
         } catch (Exception e) {
             log.error("处理微信支付回调失败", e);
-            // 返回失败响应
-            return "{\"code\":\"FAIL\",\"message\":\"" + e.getMessage() + "\"}";
+            return buildFailResponse(e.getMessage());
+        }
+    }
+
+    /**
+     * 处理支付成功逻辑
+     */
+    private String handlePaymentSuccess(Notification notification) {
+        try {
+            // 获取解密后的数据
+            String resourceJson = notification.getDecryptData();
+            log.info("解密后的支付回调数据: {}", resourceJson);
+            
+            // 解析JSON获取订单信息
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode resourceNode = mapper.readTree(resourceJson);
+            
+            String outTradeNo = resourceNode.get("out_trade_no").asText();
+            String transactionId = resourceNode.get("transaction_id").asText();
+            String tradeState = resourceNode.get("trade_state").asText();
+            
+            if (!"SUCCESS".equals(tradeState)) {
+                log.warn("支付状态不是成功: {}, 订单号: {}", tradeState, outTradeNo);
+                return buildSuccessResponse();
+            }
+            
+            Order order = orderService.getOne(
+                    new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo)
+            );
+            
+            if (order != null && "待支付".equals(order.getStatus())) {
+                // 更新订单状态
+                order.setTransactionId(transactionId);
+                order.setStatus("0"); // 已支付
+                order.setPayTime(new Date());
+                orderService.updateById(order);
+                
+                // 扣减库存
+                updateBookStock(order.getId());
+                
+                log.info("订单支付成功，订单号: {}, 微信交易号: {}", outTradeNo, transactionId);
+            } else {
+                log.warn("订单状态异常或订单不存在，订单号: {}, 状态: {}", 
+                        outTradeNo, order != null ? order.getStatus() : "null");
+            }
+
+            return buildSuccessResponse();
+            
+        } catch (Exception e) {
+            log.error("处理支付成功回调失败", e);
+            return buildFailResponse(e.getMessage());
         }
     }
 
@@ -188,9 +224,16 @@ public class OrderController {
             for (OrderItem item : orderItems) {
                 books book = booksService.getBook(item.getBookId());
                 if (book != null) {
-                    book.setStock(book.getStock() - item.getQuantity());
+                    int newStock = book.getStock() - item.getQuantity();
+                    if (newStock < 0) {
+                        log.warn("库存不足，书籍: {}, 当前库存: {}, 需要扣减: {}", 
+                                book.getBookName(), book.getStock(), item.getQuantity());
+                        newStock = 0; // 防止库存为负数
+                    }
+                    book.setStock(newStock);
                     booksService.updateById(book);
-                    log.info("扣减库存成功，书籍: {}, 扣减数量: {}", book.getBookName(), item.getQuantity());
+                    log.info("扣减库存成功，书籍: {}, 扣减数量: {}, 剩余库存: {}", 
+                            book.getBookName(), item.getQuantity(), newStock);
                 }
             }
         } catch (Exception e) {
@@ -203,18 +246,21 @@ public class OrderController {
      */
     @PostMapping("/refund/apply")
     @Transactional(rollbackFor = Exception.class)
-    public R<String> applyRefund(@RequestParam Long orderId, @RequestParam(required = false) String reason) {
+    public R<String> applyRefund(@RequestParam Long orderId, 
+                                @RequestParam(required = false) String reason) {
         try {
             Order order = orderService.getById(orderId);
             if (order == null) {
                 return R.error("订单不存在");
             }
             if (!"0".equals(order.getStatus())) {
-                return R.error("订单状态不允许退款，当前状态: " + order.getStatus());
+                return R.error("订单状态不允许退款，当前状态: " + getStatusText(order.getStatus()));
             }
 
             order.setStatus("1"); // 申请退款
-            order.setRemark(order.getRemark() + " 退款原因: " + (reason != null ? reason : ""));
+            String newRemark = order.getRemark() != null ? order.getRemark() : "";
+            newRemark += " [退款原因: " + (reason != null ? reason : "用户申请退款") + "]";
+            order.setRemark(newRemark);
             orderService.updateById(order);
 
             log.info("用户申请退款，订单ID: {}, 原因: {}", orderId, reason);
@@ -230,13 +276,21 @@ public class OrderController {
      */
     @PostMapping("/refund/notify")
     @Transactional(rollbackFor = Exception.class)
-    public String refundNotify(@RequestBody String notifyData,
-                              @RequestHeader("Wechatpay-Signature") String signature,
-                              @RequestHeader("Wechatpay-Timestamp") String timestamp,
-                              @RequestHeader("Wechatpay-Nonce") String nonce,
-                              @RequestHeader("Wechatpay-Serial") String serial) {
+    public String refundNotify(HttpServletRequest request, @RequestBody String notifyData) {
         try {
             log.info("收到微信退款回调: {}", notifyData);
+            
+            // 获取请求头
+            String signature = request.getHeader("Wechatpay-Signature");
+            String timestamp = request.getHeader("Wechatpay-Timestamp");
+            String nonce = request.getHeader("Wechatpay-Nonce");
+            String serial = request.getHeader("Wechatpay-Serial");
+
+            // 验证必要的请求头
+            if (signature == null || timestamp == null || nonce == null || serial == null) {
+                log.error("微信退款回调缺少必要的请求头");
+                return buildFailResponse("缺少必要的请求头");
+            }
             
             NotificationParser parser = new NotificationParser(wechatPayConfig.wechatPayConfig());
             RequestParam requestParam = new RequestParam.Builder()
@@ -247,35 +301,72 @@ public class OrderController {
                     .body(notifyData)
                     .build();
             
+            // 解析退款通知
             Notification notification = parser.parse(requestParam);
             
             if ("REFUND.SUCCESS".equals(notification.getEventType())) {
-                // 获取订单信息 - 从解密后的资源中获取
-                String resourceJson = notification.getResource().toString();
-                // 解析JSON获取订单信息
-                ObjectMapper mapper = new ObjectMapper();
-                JsonNode resourceNode = mapper.readTree(resourceJson);
-                
-                String outTradeNo = resourceNode.get("out_trade_no").asText();
-                
-                Order order = orderService.getOne(
-                        new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo)
-                );
-                
-                if (order != null && "1".equals(order.getStatus())) {
-                    order.setStatus("2"); // 已退款
-                    orderService.updateById(order);
-                    
-                    // 恢复库存
-                    restoreBookStock(order.getId());
-                    
-                    log.info("退款成功，订单号: {}", outTradeNo);
-                }
+                return handleRefundSuccess(notification);
+            } else if ("REFUND.ABNORMAL".equals(notification.getEventType())) {
+//                log.error("退款异常: {}", notification.getDecryptData());
+                return buildSuccessResponse();
+            } else if ("REFUND.CLOSED".equals(notification.getEventType())) {
+//                log.warn("退款关闭: {}", notification.getDecryptData());
+                return buildSuccessResponse();
+            } else {
+                log.warn("收到未知退款事件: {}", notification.getEventType());
+                return buildSuccessResponse();
             }
-            return "{\"code\":\"SUCCESS\",\"message\":\"成功\"}";
+            
         } catch (Exception e) {
             log.error("处理退款回调失败", e);
-            return "{\"code\":\"FAIL\",\"message\":\"" + e.getMessage() + "\"}";
+            return buildFailResponse(e.getMessage());
+        }
+    }
+
+    /**
+     * 处理退款成功逻辑
+     */
+    private String handleRefundSuccess(Notification notification) {
+        try {
+            // 获取解密后的数据
+            String resourceJson = notification.getDecryptData();
+            log.info("解密后的退款回调数据: {}", resourceJson);
+            
+            // 解析JSON获取订单信息
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode resourceNode = mapper.readTree(resourceJson);
+            
+            String outTradeNo = resourceNode.get("out_trade_no").asText();
+            String refundStatus = resourceNode.get("refund_status").asText();
+            
+            if (!"SUCCESS".equals(refundStatus)) {
+                log.warn("退款状态不是成功: {}, 订单号: {}", refundStatus, outTradeNo);
+                return buildSuccessResponse();
+            }
+            
+            Order order = orderService.getOne(
+                    new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo)
+            );
+            
+            if (order != null && "1".equals(order.getStatus())) {
+                order.setStatus("2"); // 已退款
+                order.setRefundTime(new Date());
+                orderService.updateById(order);
+                
+                // 恢复库存
+                restoreBookStock(order.getId());
+                
+                log.info("退款成功，订单号: {}", outTradeNo);
+            } else {
+                log.warn("退款回调时订单状态异常，订单号: {}, 状态: {}", 
+                        outTradeNo, order != null ? order.getStatus() : "null");
+            }
+            
+            return buildSuccessResponse();
+            
+        } catch (Exception e) {
+            log.error("处理退款成功回调失败", e);
+            return buildFailResponse(e.getMessage());
         }
     }
 
@@ -290,7 +381,8 @@ public class OrderController {
                 if (book != null) {
                     book.setStock(book.getStock() + item.getQuantity());
                     booksService.updateById(book);
-                    log.info("恢复库存成功，书籍: {}, 恢复数量: {}", book.getBookName(), item.getQuantity());
+                    log.info("恢复库存成功，书籍: {}, 恢复数量: {}, 当前库存: {}", 
+                            book.getBookName(), item.getQuantity(), book.getStock());
                 }
             }
         } catch (Exception e) {
@@ -303,47 +395,53 @@ public class OrderController {
      */
     @PostMapping("/refund/execute")
     @Transactional(rollbackFor = Exception.class)
-    public R<String> executeRefund(@RequestParam Long orderId) {
+    public R<String> executeRefund(@RequestParam Long orderId, 
+                                  @RequestParam(required = false) String reason) {
         try {
             Order order = orderService.getById(orderId);
             if (order == null) {
                 return R.error("订单不存在");
             }
-            if (!"1".equals(order.getStatus())) {
-                return R.error("订单状态不允许执行退款，当前状态: " + order.getStatus());
+            if (!"1".equals(order.getStatus()) && !"0".equals(order.getStatus())) {
+                return R.error("订单状态不允许执行退款，当前状态: " + getStatusText(order.getStatus()));
             }
 
-            RefundService refundService = new RefundService.Builder().config(wechatPayConfig.wechatPayConfig()).build();
-            RefundRequest refundRequest = new RefundRequest();
+            // 构建退款请求 - 使用正确的 CreateRequest
+            CreateRequest refundRequest = new CreateRequest();
             refundRequest.setOutTradeNo(order.getOutTradeNo());
-            refundRequest.setOutRefundNo(UUID.randomUUID().toString().replace("-", ""));
-            refundRequest.setNotifyUrl(wechatPayConfig.getNotifyUrl());
+            refundRequest.setOutRefundNo("refund_" + UUID.randomUUID().toString().replace("-", ""));
+            refundRequest.setReason(reason != null ? reason : "管理员执行退款");
+            refundRequest.setNotifyUrl(wechatPayConfig.getRefundNotifyUrl());
             
-            RefundRequest.Amount amount = new RefundRequest.Amount();
-            amount.setRefund(order.getMoney());
-            amount.setTotal(order.getMoney());
+            // 设置退款金额
+            CreateRequest.Amount amount = new CreateRequest.Amount();
+            amount.setRefund(Long.valueOf(order.getMoney()));
+            amount.setTotal(Long.valueOf(order.getMoney()));
             amount.setCurrency("CNY");
             refundRequest.setAmount(amount);
 
-            Refund refund = refundService.refund(refundRequest);
-            if ("SUCCESS".equals(refund.getStatus())) {
-                order.setStatus("2"); // 已退款
+            // 发起退款请求
+            Refund refund = refundService.create(refundRequest);
+            
+            log.info("退款请求已发起，退款单号: {}, 状态: {}, 订单号: {}", 
+                    refund.getOutRefundNo(), refund.getStatus(), order.getOutTradeNo());
+
+            // 更新订单状态为申请退款（等待微信回调确认）
+            if ("0".equals(order.getStatus())) {
+                order.setStatus("1"); // 申请退款状态，等待微信回调确认
+                String newRemark = order.getRemark() != null ? order.getRemark() : "";
+                newRemark += " [管理员执行退款: " + (reason != null ? reason : "管理员操作") + "]";
+                order.setRemark(newRemark);
                 orderService.updateById(order);
-                
-                // 恢复库存
-                restoreBookStock(orderId);
-                
-                log.info("管理员执行退款成功，订单ID: {}", orderId);
-                return R.ok("退款成功");
-            } else {
-                return R.error("退款失败: " + refund.getStatus());
             }
+
+            return R.ok("退款请求已发起，退款单号: " + refund.getOutRefundNo());
+            
         } catch (Exception e) {
-            log.error("执行退款失败", e);
+            log.error("执行退款失败，订单ID: {}", orderId, e);
             return R.error("执行退款失败: " + e.getMessage());
         }
     }
-
 
     /**
      * 查询订单
@@ -476,7 +574,7 @@ public class OrderController {
         order.setPhone(phone);
         order.setAddress(address);
         order.setRemark(remark);
-        order.setOutTradeNo(UUID.randomUUID().toString().replace("-", ""));
+        order.setOutTradeNo("order_" + UUID.randomUUID().toString().replace("-", ""));
         order.setStatus("待支付");
         order.setCreatedat(new Date());
         return order;
@@ -574,12 +672,39 @@ public class OrderController {
             payParams.put("signType", signType);
             payParams.put("paySign", paySign);
 
+            log.info("发起微信支付成功，订单号: {}, prepay_id: {}", order.getOutTradeNo(), response.getPrepayId());
             return R.ok(payParams);
 
         } catch (Exception e) {
-            log.error("发起微信支付失败", e);
+            log.error("发起微信支付失败，订单号: {}", order.getOutTradeNo(), e);
             return R.error("发起支付失败: " + e.getMessage());
         }
     }
 
+    /**
+     * 构建成功响应
+     */
+    private String buildSuccessResponse() {
+        return "{\"code\":\"SUCCESS\",\"message\":\"成功\"}";
+    }
+
+    /**
+     * 构建失败响应
+     */
+    private String buildFailResponse(String message) {
+        return "{\"code\":\"FAIL\",\"message\":\"" + message + "\"}";
+    }
+
+    /**
+     * 获取状态文本
+     */
+    private String getStatusText(String status) {
+        switch (status) {
+            case "待支付": return "待支付";
+            case "0": return "已支付";
+            case "1": return "申请退款";
+            case "2": return "已退款";
+            default: return "未知状态";
+        }
+    }
 }

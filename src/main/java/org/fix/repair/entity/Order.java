@@ -96,6 +96,12 @@ public class Order {
     private Date payTime;
 
     /**
+     * 退款时间
+     */
+    @TableField(value = "refund_time")
+    private Date refundTime;
+
+    /**
      * 创建时间
      */
     @TableField(value = "created_at")

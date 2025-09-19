@@ -37,7 +37,8 @@ wxpay:
   mch-serial-no: your-mch-serial-no
   mch-private-key-file-path: classpath:apiclient_key.pem
   api-v3-key: your-api-v3-key
-  notify-url: https://your-domain.com/order/notify
+  notify-url: https://your-domain.com/appoint/notify
+  refund-notify-url: https://your-domain.com/appoint/refund/notify
 gp:
   minio:
     endpointUrl: http://124.222.172.221:9000
