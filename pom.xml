@@ -79,6 +79,7 @@
             <version>8.5.2</version>
         </dependency>
 
+        <!-- 微信支付官方SDK -->
         <dependency>
             <groupId>com.github.wechatpay-apiv3</groupId>
             <artifactId>wechatpay-java</artifactId>

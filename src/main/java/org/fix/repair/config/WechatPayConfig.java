@@ -5,75 +5,70 @@ import com.wechat.pay.java.core.RSAAutoCertificateConfig;
 import com.wechat.pay.java.service.payments.jsapi.JsapiService;
 import com.wechat.pay.java.service.refund.RefundService;
 import lombok.Data;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * 微信支付配置
+ */
 @Configuration
+@ConfigurationProperties(prefix = "wx.pay")
 @Data
 public class WechatPayConfig {
-
-    @Value("${wxpay.appid}")
+    
+    /**
+     * 微信支付应用ID
+     */
     private String appId;
-
-    @Value("${wxpay.mch-id}")
+    
+    /**
+     * 微信支付商户号
+     */
     private String mchId;
-
-    @Value("${wxpay.mch-serial-no}")
-    private String mchSerialNo;
-
-    @Value("${wxpay.mch-private-key-file-path}")
-    private String privateKeyPath;
-
-    @Value("${wxpay.api-v3-key}")
+    
+    /**
+     * 商户私钥字符串
+     */
+    private String privateKey;
+    
+    /**
+     * 商户证书序列号
+     */
+    private String merchantSerialNumber;
+    
+    /**
+     * 微信支付平台证书
+     */
     private String apiV3Key;
-
-    @Value("${wxpay.notify-url}")
+    
+    /**
+     * 支付回调地址
+     */
     private String notifyUrl;
-
-    @Value("${wxpay.refund-notify-url:}")
+    
+    /**
+     * 退款回调地址
+     */
     private String refundNotifyUrl;
 
     @Bean
     public Config wechatPayConfig() {
         return new RSAAutoCertificateConfig.Builder()
                 .merchantId(mchId)
-                .privateKeyFromPath(privateKeyPath)
-                .merchantSerialNumber(mchSerialNo)
+                .privateKey(privateKey)
+                .merchantSerialNumber(merchantSerialNumber)
                 .apiV3Key(apiV3Key)
                 .build();
     }
 
     @Bean
-    public JsapiService jsapiService(Config config) {
-        return new JsapiService.Builder().config(config).build();
+    public JsapiService jsapiService() {
+        return new JsapiService.Builder().config(wechatPayConfig()).build();
     }
 
     @Bean
-    public RefundService refundService(Config config) {
-        return new RefundService.Builder().config(config).build();
-    }
-
-    /**
-     * 获取私钥文件路径
-     */
-    public String getPrivateKeyPath() {
-        return privateKeyPath;
-    }
-
-    /**
-     * 获取API v3密钥
-     */
-    public String getApiV3Key() {
-        return apiV3Key;
-    }
-
-    /**
-     * 获取退款回调URL
-     */
-    public String getRefundNotifyUrl() {
-        return refundNotifyUrl != null && !refundNotifyUrl.isEmpty() 
-            ? refundNotifyUrl 
-            : notifyUrl.replace("/notify", "/refund/notify");
+    public RefundService refundService() {
+        return new RefundService.Builder().config(wechatPayConfig()).build();
     }
 }
