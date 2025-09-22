@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - 图书商城后台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background-color: #343a40;
+            padding-top: 20px;
+        }
+        .sidebar .nav-link {
+            color: #adb5bd;
+            margin: 5px 15px;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover {
+            color: #fff;
+            background-color: #495057;
+        }
+        .sidebar .nav-link.active {
+            color: #fff;
+            background-color: #007bff;
+        }
+        .main-content {
+            padding: 20px;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .search-box {
+            border-radius: 25px;
+            padding-left: 40px;
+        }
+        .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+        .table th {
+            border-top: none;
+            font-weight: 600;
+            color: #495057;
+        }
+        .btn-action {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 侧边栏 -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <h5 class="text-white">图书商城管理</h5>
+                        <small class="text-muted">Admin Panel</small>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/dashboard">
+                                <i class="bi bi-house-door"></i> 控制台
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/books">
+                                <i class="bi bi-book"></i> 书籍管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/categories">
+                                <i class="bi bi-tags"></i> 分类管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/orders">
+                                <i class="bi bi-cart-check"></i> 订单管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/admin/users">
+                                <i class="bi bi-people"></i> 用户管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/statistics">
+                                <i class="bi bi-graph-up"></i> 数据统计
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/settings">
+                                <i class="bi bi-gear"></i> 系统设置
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link text-danger" href="/admin/logout">
+                                <i class="bi bi-box-arrow-right"></i> 退出登录
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- 主内容区域 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <!-- 页面标题 -->
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">用户管理</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <button type="button" class="btn btn-outline-secondary me-2" onclick="refreshUsers()">
+                            <i class="bi bi-arrow-clockwise"></i> 刷新
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 用户统计 -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-white bg-primary">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h4 id="totalUsers">0</h4>
+                                        <p class="card-text">总用户数</p>
+                                    </div>
+                                    <div class="align-self-center">
+                                        <i class="bi bi-people" style="font-size: 2rem;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-white bg-success">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h4 id="activeUsers">0</h4>
+                                        <p class="card-text">活跃用户</p>
+                                    </div>
+                                    <div class="align-self-center">
+                                        <i class="bi bi-person-check" style="font-size: 2rem;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-white bg-info">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h4 id="newUsers">0</h4>
+                                        <p class="card-text">本月新增</p>
+                                    </div>
+                                    <div class="align-self-center">
+                                        <i class="bi bi-person-plus" style="font-size: 2rem;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 搜索和筛选 -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="position-relative">
+                                    <i class="bi bi-search search-icon"></i>
+                                    <input type="text" class="form-control search-box" id="searchKeyword" 
+                                           placeholder="搜索用户名或手机号...">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-primary" onclick="searchUsers()">
+                                    <i class="bi bi-search"></i> 搜索
+                                </button>
+                                <button class="btn btn-outline-secondary ms-2" onclick="clearSearch()">
+                                    <i class="bi bi-x-circle"></i> 清空
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 用户列表 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">用户列表</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>头像</th>
+                                        <th>用户名</th>
+                                        <th>手机号</th>
+                                        <th>注册时间</th>
+                                        <th>状态</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">加载中...</span>
+                                            </div>
+                                            <p class="mt-2 text-muted">正在加载用户数据...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 用户详情模态框 -->
+    <div class="modal fade" id="userDetailModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">用户详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center">
+                            <img id="userDetailAvatar" class="rounded-circle mb-3" style="width: 100px; height: 100px;" alt="用户头像">
+                        </div>
+                        <div class="col-md-8">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>用户ID:</strong></td>
+                                    <td id="userDetailId"></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>用户名:</strong></td>
+                                    <td id="userDetailUsername"></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>手机号:</strong></td>
+                                    <td id="userDetailPhone"></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>注册时间:</strong></td>
+                                    <td id="userDetailCreateTime"></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>微信OpenID:</strong></td>
+                                    <td id="userDetailOpenId"></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allUsers = [];
+        let currentUsers = [];
+
+        $(document).ready(function() {
+            loadUsers();
+            
+            // 搜索框回车搜索
+            $('#searchKeyword').keypress(function(e) {
+                if (e.which === 13) {
+                    searchUsers();
+                }
+            });
+        });
+
+        function loadUsers() {
+            $.get('/admin/api/users', function(response) {
+                if (response.code === 200) {
+                    allUsers = response.data;
+                    currentUsers = allUsers;
+                    displayUsers(currentUsers);
+                    updateStatistics(allUsers);
+                } else {
+                    showAlert('加载用户失败: ' + response.msg, 'danger');
+                }
+            }).fail(function() {
+                showAlert('网络错误，加载用户失败', 'danger');
+                $('#usersTableBody').html(`
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2rem;"></i>
+                            <p class="mt-2 text-muted">加载失败，请刷新重试</p>
+                        </td>
+                    </tr>
+                `);
+            });
+        }
+
+        function displayUsers(users) {
+            const tbody = $('#usersTableBody');
+            tbody.empty();
+
+            if (users.length === 0) {
+                tbody.html(`
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <i class="bi bi-inbox" style="font-size: 2rem; color: #6c757d;"></i>
+                            <p class="mt-2 text-muted">暂无用户数据</p>
+                        </td>
+                    </tr>
+                `);
+                return;
+            }
+
+            users.forEach(user => {
+                const row = `
+                    <tr>
+                        <td>
+                            ${user.avatarUrl ? 
+                                `<img src="${user.avatarUrl}" class="user-avatar" alt="${user.username}">` :
+                                `<div class="user-avatar bg-secondary d-flex align-items-center justify-content-center text-white">
+                                    <i class="bi bi-person"></i>
+                                </div>`
+                            }
+                        </td>
+                        <td>
+                            <div>
+                                <strong>${user.username || '未设置'}</strong>
+                                ${user.openid ? '<small class="d-block text-muted">微信用户</small>' : ''}
+                            </div>
+                        </td>
+                        <td>${user.phone || '未绑定'}</td>
+                        <td>${new Date(user.createdat).toLocaleString()}</td>
+                        <td>
+                            <span class="badge bg-success">正常</span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary btn-action me-1" onclick="showUserDetail(${user.id})">
+                                <i class="bi bi-eye"></i> 详情
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger btn-action" onclick="deleteUser(${user.id}, '${user.username || user.phone}')">
+                                <i class="bi bi-trash"></i> 删除
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                tbody.append(row);
+            });
+        }
+
+        function updateStatistics(users) {
+            $('#totalUsers').text(users.length);
+            $('#activeUsers').text(users.length); // 简化统计，实际可以根据最后登录时间计算
+            
+            // 计算本月新增用户
+            const currentMonth = new Date().getMonth();
+            const newThisMonth = users.filter(user => {
+                return new Date(user.createdat).getMonth() === currentMonth;
+            }).length;
+            $('#newUsers').text(newThisMonth);
+        }
+
+        function searchUsers() {
+            const keyword = $('#searchKeyword').val().trim();
+            
+            if (!keyword) {
+                currentUsers = allUsers;
+                displayUsers(currentUsers);
+                return;
+            }
+
+            $.get(`/admin/api/users/search?keyword=${encodeURIComponent(keyword)}`, function(response) {
+                if (response.code === 200) {
+                    currentUsers = response.data;
+                    displayUsers(currentUsers);
+                } else {
+                    showAlert('搜索失败: ' + response.msg, 'danger');
+                }
+            }).fail(function() {
+                showAlert('搜索失败，请重试', 'danger');
+            });
+        }
+
+        function clearSearch() {
+            $('#searchKeyword').val('');
+            currentUsers = allUsers;
+            displayUsers(currentUsers);
+        }
+
+        function refreshUsers() {
+            $('#searchKeyword').val('');
+            loadUsers();
+        }
+
+        function showUserDetail(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (!user) {
+                showAlert('用户信息不存在', 'warning');
+                return;
+            }
+
+            $('#userDetailId').text(user.id);
+            $('#userDetailUsername').text(user.username || '未设置');
+            $('#userDetailPhone').text(user.phone || '未绑定');
+            $('#userDetailCreateTime').text(new Date(user.createdat).toLocaleString());
+            $('#userDetailOpenId').text(user.openid || '未绑定');
+
+            if (user.avatarUrl) {
+                $('#userDetailAvatar').attr('src', user.avatarUrl).attr('alt', user.username);
+            } else {
+                $('#userDetailAvatar').attr('src', 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjNkM3NTdEIi8+CjxwYXRoIGQ9Ik01MCA1MEMtNTUuMjI4NSA1MCA0NS43NzE1IDYwIDQ1Ljc3MTUgNjBINTQuMjI4NUM1NC4yMjg1IDYwIDU1IDUwIDUwIDUwWiIgZmlsbD0iI0ZGRiIvPgo8L3N2Zz4K').attr('alt', '默认头像');
+            }
+
+            $('#userDetailModal').modal('show');
+        }
+
+        function deleteUser(userId, userName) {
+            if (confirm(`确定要删除用户"${userName}"吗？删除后不可恢复。`)) {
+                $.ajax({
+                    url: `/admin/api/users/delete/${userId}`,
+                    type: 'POST',
+                    success: function(response) {
+                        if (response.code === 200) {
+                            showAlert('删除用户成功', 'success');
+                            loadUsers(); // 重新加载用户列表
+                        } else {
+                            showAlert('删除用户失败: ' + response.msg, 'danger');
+                        }
+                    },
+                    error: function() {
+                        showAlert('网络错误，删除用户失败', 'danger');
+                    }
+                });
+            }
+        }
+
+        function showAlert(message, type = 'info') {
+            // 移除现有的提示
+            $('.alert').remove();
+            
+            const alert = $(`
+                <div class="alert alert-${type} alert-dismissible fade show position-fixed" 
+                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `);
+            
+            $('body').append(alert);
+            
+            // 自动关闭
+            setTimeout(() => {
+                alert.alert('close');
+            }, 3000);
+        }
+    </script>
+</body>
+</html> 

@@ -1,11 +1,11 @@
 server:
-  port: 8082
+  port: 8083
 
 spring:
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://124.222.172.221:3306/repair?userUnicode=true&useSSL=false&characterEncoding=utf8
+    url: jdbc:mysql://124.222.172.221:3306/bookstore?userUnicode=true&useSSL=false&characterEncoding=utf8
     password: kai2606110123
     username: root
     hikari:
@@ -32,13 +32,14 @@ mybatis-plus:
     check-config-location: false
   mapper-locations: classpath:mapper/*.xml
 wxpay:
-  appid: your-appid
-  mch-id: your-mch-id
-  mch-serial-no: your-mch-serial-no
-  mch-private-key-file-path: classpath:apiclient_key.pem
-  api-v3-key: your-api-v3-key
-  notify-url: https://your-domain.com/appoint/notify
-  refund-notify-url: https://your-domain.com/appoint/refund/notify
+  enabled: false  # 暂时禁用微信支付配置
+  app-id: wx1234567890abcdef
+  mch-id: 1234567890
+  private-key-path: src/main/resources/apiclient_key.pem
+  merchant-serial-number: 5C5B1A7E0E1D2C3B4A59687786959483
+  api-v3-key: ABCDEFGHIJKLMNOPQRSTUVWXYZ123456
+  notify-url: https://your-test-domain.com/api/pay/notify
+  refund-notify-url: https://your-test-domain.com/api/pay/refund/notify
 gp:
   minio:
     endpointUrl: http://124.222.172.221:9000

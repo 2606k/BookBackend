@@ -12,7 +12,7 @@ import java.util.Date;
  * 维修家电后台管理用户信息表
  * @TableName wedding_user
  */
-@TableName(value ="wedding_user")
+@TableName(value ="user")
 @Data
 public class WeddingUser {
     /**

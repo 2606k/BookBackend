@@ -10,6 +10,7 @@ import com.wechat.pay.java.core.util.NonceUtil;
 import com.wechat.pay.java.service.payments.jsapi.JsapiService;
 import com.wechat.pay.java.service.payments.jsapi.model.*;
 import com.wechat.pay.java.service.refund.RefundService;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.wechat.pay.java.service.refund.model.CreateRequest;
 import com.wechat.pay.java.service.refund.model.Refund;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,6 +31,11 @@ import org.fix.repair.service.OrderService;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
+
 import java.util.*;
 
 /**
@@ -39,16 +45,29 @@ import java.util.*;
 @Slf4j
 @RestController
 @RequestMapping("/appoint")
-@AllArgsConstructor
 public class OrderController {
 
     private final OrderService orderService;
     private final OrderItemService orderItemService;
     private final OrderMapper orderMapper;
-    private final WechatPayConfig wechatPayConfig;
     private final BooksService booksService;
-    private final JsapiService jsapiService;
-    private final RefundService refundService;
+    
+    @Autowired(required = false)
+    private WechatPayConfig wechatPayConfig;
+    
+    @Autowired(required = false)
+    private JsapiService jsapiService;
+    
+    @Autowired(required = false)
+    private RefundService refundService;
+
+    public OrderController(OrderService orderService, OrderItemService orderItemService, 
+                          OrderMapper orderMapper, BooksService booksService) {
+        this.orderService = orderService;
+        this.orderItemService = orderItemService;
+        this.orderMapper = orderMapper;
+        this.booksService = booksService;
+    }
 
     /**
      * 创建订单并发起支付
@@ -616,6 +635,17 @@ public class OrderController {
      */
     private R<Map<String, String>> initiateWechatPayment(Order order) {
         try {
+            // 检查微信支付服务是否可用
+            if (jsapiService == null || wechatPayConfig == null) {
+                log.warn("微信支付服务未配置，返回模拟支付参数");
+                Map<String, String> mockPayParams = new HashMap<>();
+                mockPayParams.put("message", "微信支付服务未配置，这是测试环境");
+                mockPayParams.put("orderId", order.getId().toString());
+                mockPayParams.put("outTradeNo", order.getOutTradeNo());
+                mockPayParams.put("amount", order.getMoney().toString());
+                return R.ok(mockPayParams);
+            }
+            
             // 创建预支付请求
             PrepayRequest prepayRequest = new PrepayRequest();
             prepayRequest.setAppid(wechatPayConfig.getAppId());
@@ -650,7 +680,7 @@ public class OrderController {
                     timeStamp,
                     nonceStr,
                     packageStr,
-                    wechatPayConfig.getPrivateKey()
+                    wechatPayConfig.getPrivateKeyPath()
             );
 
             Map<String, String> payParams = new HashMap<>();

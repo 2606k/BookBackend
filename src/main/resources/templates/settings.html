@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置 - 图书商城后台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background-color: #343a40;
+            padding-top: 20px;
+        }
+        .sidebar .nav-link {
+            color: #adb5bd;
+            margin: 5px 15px;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover {
+            color: #fff;
+            background-color: #495057;
+        }
+        .sidebar .nav-link.active {
+            color: #fff;
+            background-color: #007bff;
+        }
+        .main-content {
+            padding: 20px;
+        }
+        .setting-card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .setting-item {
+            border-bottom: 1px solid #e9ecef;
+            padding: 15px 0;
+        }
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #007bff;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 侧边栏 -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <h5 class="text-white">图书商城管理</h5>
+                        <small class="text-muted">Admin Panel</small>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/dashboard">
+                                <i class="bi bi-house-door"></i> 控制台
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/books">
+                                <i class="bi bi-book"></i> 书籍管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/categories">
+                                <i class="bi bi-tags"></i> 分类管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/orders">
+                                <i class="bi bi-cart-check"></i> 订单管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/users">
+                                <i class="bi bi-people"></i> 用户管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/statistics">
+                                <i class="bi bi-graph-up"></i> 数据统计
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/admin/settings">
+                                <i class="bi bi-gear"></i> 系统设置
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link text-danger" href="/admin/logout" onclick="return confirm('确定要退出吗？')">
+                                <i class="bi bi-box-arrow-right"></i> 退出登录
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- 主内容区域 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <!-- 页面标题 -->
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">系统设置</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <button type="button" class="btn btn-success" onclick="saveSettings()">
+                            <i class="bi bi-check-lg"></i> 保存设置
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 基本设置 -->
+                <div class="card setting-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-gear-fill text-primary"></i> 基本设置
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="setting-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <label class="form-label"><strong>网站名称</strong></label>
+                                    <input type="text" class="form-control" id="siteName" value="图书商城" placeholder="请输入网站名称">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><strong>网站描述</strong></label>
+                                    <input type="text" class="form-control" id="siteDescription" value="专业的图书销售平台" placeholder="请输入网站描述">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="setting-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <label class="form-label"><strong>联系邮箱</strong></label>
+                                    <input type="email" class="form-control" id="contactEmail" value="admin@bookstore.com" placeholder="请输入联系邮箱">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><strong>客服电话</strong></label>
+                                    <input type="tel" class="form-control" id="contactPhone" value="400-123-4567" placeholder="请输入客服电话">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 商品设置 -->
+                <div class="card setting-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-box-seam text-success"></i> 商品设置
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="setting-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <div>
+                                        <strong>启用库存预警</strong>
+                                        <p class="text-muted mb-0">当商品库存低于设定值时发送预警通知</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <label class="switch">
+                                        <input type="checkbox" id="enableStockAlert" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="setting-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <label class="form-label"><strong>库存预警阈值</strong></label>
+                                    <input type="number" class="form-control" id="stockThreshold" value="10" min="1">
+                                    <small class="text-muted">库存数量低于此值时触发预警</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><strong>默认每页显示数量</strong></label>
+                                    <select class="form-select" id="defaultPageSize">
+                                        <option value="10">10条</option>
+                                        <option value="20" selected>20条</option>
+                                        <option value="50">50条</option>
+                                        <option value="100">100条</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 用户设置 -->
+                <div class="card setting-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-people-fill text-info"></i> 用户设置
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="setting-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <div>
+                                        <strong>允许用户注册</strong>
+                                        <p class="text-muted mb-0">是否允许新用户自主注册账号</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <label class="switch">
+                                        <input type="checkbox" id="allowUserRegister" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="setting-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <div>
+                                        <strong>启用手机验证</strong>
+                                        <p class="text-muted mb-0">注册和登录时是否需要手机验证码</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <label class="switch">
+                                        <input type="checkbox" id="enablePhoneVerify">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 系统安全 -->
+                <div class="card setting-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-shield-check text-warning"></i> 系统安全
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="setting-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <div>
+                                        <strong>启用操作日志</strong>
+                                        <p class="text-muted mb-0">记录管理员的关键操作日志</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <label class="switch">
+                                        <input type="checkbox" id="enableOperationLog" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="setting-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <label class="form-label"><strong>登录超时时间（分钟）</strong></label>
+                                    <input type="number" class="form-control" id="sessionTimeout" value="120" min="30" max="1440">
+                                    <small class="text-muted">用户无操作后自动退出的时间</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><strong>密码最小长度</strong></label>
+                                    <input type="number" class="form-control" id="minPasswordLength" value="6" min="4" max="20">
+                                    <small class="text-muted">用户密码的最小长度要求</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 文件上传设置 -->
+                <div class="card setting-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-cloud-upload text-secondary"></i> 文件上传设置
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="setting-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <label class="form-label"><strong>最大文件大小（MB）</strong></label>
+                                    <input type="number" class="form-control" id="maxFileSize" value="5" min="1" max="100">
+                                    <small class="text-muted">单个文件上传的最大大小限制</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><strong>允许的文件类型</strong></label>
+                                    <input type="text" class="form-control" id="allowedFileTypes" value="jpg,jpeg,png,gif" readonly>
+                                    <small class="text-muted">支持上传的文件扩展名</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 系统信息（只读） -->
+                <div class="card setting-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-info-circle text-primary"></i> 系统信息
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>系统版本:</strong></td>
+                                        <td>BookBackend v1.1.0</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Java版本:</strong></td>
+                                        <td>Java 17</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Spring Boot:</strong></td>
+                                        <td>3.x</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>数据库:</strong></td>
+                                        <td>MySQL</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>启动时间:</strong></td>
+                                        <td id="systemStartTime">--</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>运行时间:</strong></td>
+                                        <td id="systemUptime">--</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            loadSettings();
+            updateSystemInfo();
+        });
+
+        function loadSettings() {
+            // 这里可以从后端加载实际的设置数据
+            // 目前使用默认值
+            console.log('Settings loaded');
+        }
+
+        function saveSettings() {
+            const settings = {
+                siteName: $('#siteName').val(),
+                siteDescription: $('#siteDescription').val(),
+                contactEmail: $('#contactEmail').val(),
+                contactPhone: $('#contactPhone').val(),
+                enableStockAlert: $('#enableStockAlert').is(':checked'),
+                stockThreshold: parseInt($('#stockThreshold').val()),
+                defaultPageSize: parseInt($('#defaultPageSize').val()),
+                allowUserRegister: $('#allowUserRegister').is(':checked'),
+                enablePhoneVerify: $('#enablePhoneVerify').is(':checked'),
+                enableOperationLog: $('#enableOperationLog').is(':checked'),
+                sessionTimeout: parseInt($('#sessionTimeout').val()),
+                minPasswordLength: parseInt($('#minPasswordLength').val()),
+                maxFileSize: parseInt($('#maxFileSize').val()),
+                allowedFileTypes: $('#allowedFileTypes').val()
+            };
+
+            // 验证设置
+            if (!settings.siteName.trim()) {
+                showAlert('网站名称不能为空', 'warning');
+                return;
+            }
+
+            if (!settings.contactEmail.trim() || !validateEmail(settings.contactEmail)) {
+                showAlert('请输入有效的联系邮箱', 'warning');
+                return;
+            }
+
+            if (settings.stockThreshold < 1) {
+                showAlert('库存预警阈值不能小于1', 'warning');
+                return;
+            }
+
+            // 这里可以调用后端API保存设置
+            // 目前只是显示成功消息
+            showAlert('设置保存成功', 'success');
+            
+            console.log('Saved settings:', settings);
+        }
+
+        function validateEmail(email) {
+            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return re.test(email);
+        }
+
+        function updateSystemInfo() {
+            // 模拟系统启动时间
+            const startTime = new Date();
+            startTime.setHours(startTime.getHours() - 5); // 假设系统5小时前启动
+            $('#systemStartTime').text(startTime.toLocaleString());
+
+            // 更新运行时间
+            function updateUptime() {
+                const now = new Date();
+                const diff = now - startTime;
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                $('#systemUptime').text(`${hours}小时${minutes}分钟`);
+            }
+
+            updateUptime();
+            setInterval(updateUptime, 60000); // 每分钟更新一次
+        }
+
+        function showAlert(message, type = 'info') {
+            // 移除现有的提示
+            $('.alert').remove();
+            
+            const alert = $(`
+                <div class="alert alert-${type} alert-dismissible fade show position-fixed" 
+                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `);
+            
+            $('body').append(alert);
+            
+            // 自动关闭
+            setTimeout(() => {
+                alert.alert('close');
+            }, 3000);
+        }
+    </script>
+</body>
+</html> 

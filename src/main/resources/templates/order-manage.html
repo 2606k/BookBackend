@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订单管理 - 后台管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background-color: #343a40;
+            padding-top: 20px;
+        }
+        .sidebar .nav-link {
+            color: #adb5bd;
+            margin: 5px 15px;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover {
+            color: #fff;
+            background-color: #495057;
+        }
+        .sidebar .nav-link.active {
+            color: #fff;
+            background-color: #007bff;
+        }
+        .main-content {
+            padding: 20px;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .status-badge {
+            font-size: 0.8rem;
+            padding: 0.3rem 0.6rem;
+        }
+        .btn-action {
+            padding: 0.2rem 0.5rem;
+            font-size: 0.8rem;
+        }
+        .order-detail {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 侧边栏 -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <h5 class="text-white">图书商城管理</h5>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/dashboard">
+                                <i class="bi bi-house-door"></i> 控制台
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/books">
+                                <i class="bi bi-book"></i> 书籍管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/admin/orders">
+                                <i class="bi bi-cart-check"></i> 订单管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/users">
+                                <i class="bi bi-people"></i> 用户管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/statistics">
+                                <i class="bi bi-graph-up"></i> 数据统计
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- 主内容区 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <!-- 顶部导航 -->
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">订单管理</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <button type="button" class="btn btn-primary" onclick="refreshOrders()">
+                            <i class="bi bi-arrow-clockwise"></i> 刷新
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 搜索过滤区域 -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">订单号</label>
+                                <input type="text" class="form-control" id="searchOrderNo" placeholder="输入订单号">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">用户手机号</label>
+                                <input type="text" class="form-control" id="searchPhone" placeholder="输入手机号">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">收货人姓名</label>
+                                <input type="text" class="form-control" id="searchName" placeholder="输入姓名">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">订单状态</label>
+                                <select class="form-select" id="searchStatus">
+                                    <option value="">全部状态</option>
+                                    <option value="待支付">待支付</option>
+                                    <option value="0">已支付</option>
+                                    <option value="1">申请退款</option>
+                                    <option value="2">已退款</option>
+                                    <option value="已关闭">已关闭</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <button type="button" class="btn btn-primary" onclick="searchOrders()">
+                                    <i class="bi bi-search"></i> 搜索
+                                </button>
+                                <button type="button" class="btn btn-secondary ms-2" onclick="resetSearch()">
+                                    <i class="bi bi-arrow-counterclockwise"></i> 重置
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 订单列表 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">订单列表</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>订单号</th>
+                                        <th>收货信息</th>
+                                        <th>商品信息</th>
+                                        <th>金额</th>
+                                        <th>状态</th>
+                                        <th>创建时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="orderTableBody">
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted py-4">
+                                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                            正在加载订单数据...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 分页 -->
+                        <nav aria-label="订单分页">
+                            <ul class="pagination justify-content-center" id="pagination">
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 订单详情模态框 -->
+    <div class="modal fade" id="orderDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">订单详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="orderDetailBody">
+                    <!-- 订单详情内容 -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 退款确认模态框 -->
+    <div class="modal fade" id="refundModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">退款确认</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">退款原因</label>
+                        <textarea class="form-control" id="refundReason" rows="3" placeholder="请输入退款原因"></textarea>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        确认要对此订单进行退款吗？此操作不可撤销。
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmRefund()">确认退款</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentPage = 1;
+        let pageSize = 10;
+        let currentRefundOrderId = null;
+
+        $(document).ready(function() {
+            loadOrders();
+        });
+
+        function loadOrders(page = 1) {
+            currentPage = page;
+            const searchParams = getSearchParams();
+            
+            $.ajax({
+                url: '/appoint/list',
+                type: 'GET',
+                data: {
+                    page: page,
+                    size: pageSize,
+                    ...searchParams
+                },
+                success: function(response) {
+                    if (response.code === 200) {
+                        renderOrderTable(response.data.records);
+                        renderPagination(response.data);
+                    } else {
+                        showAlert('加载订单失败：' + response.msg, 'danger');
+                    }
+                },
+                error: function() {
+                    showAlert('网络错误，请稍后重试', 'danger');
+                }
+            });
+        }
+
+        function getSearchParams() {
+            return {
+                phone: $('#searchPhone').val(),
+                name: $('#searchName').val(),
+                status: $('#searchStatus').val()
+            };
+        }
+
+        function renderOrderTable(orders) {
+            const tbody = $('#orderTableBody');
+            if (!orders || orders.length === 0) {
+                tbody.html('<tr><td colspan="7" class="text-center text-muted py-4">暂无订单数据</td></tr>');
+                return;
+            }
+
+            const rows = orders.map(order => {
+                const statusBadge = getStatusBadge(order.status);
+                const actionButtons = getActionButtons(order);
+                const orderItems = order.orderItems || [];
+                const itemsText = orderItems.map(item => `${item.bookName} x${item.quantity}`).join('<br>');
+                
+                return `
+                    <tr>
+                        <td>
+                            <div class="fw-bold">${order.outTradeNo || '未生成'}</div>
+                            <small class="text-muted">ID: ${order.id}</small>
+                        </td>
+                        <td>
+                            <div><strong>${order.name}</strong></div>
+                            <div class="text-muted small">${order.phone}</div>
+                            <div class="text-muted small">${order.address}</div>
+                        </td>
+                        <td>
+                            <div class="small">${itemsText}</div>
+                            <div class="text-muted small">共 ${order.num} 件商品</div>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-primary">¥${(order.money / 100).toFixed(2)}</div>
+                        </td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            <div class="small">${formatDateTime(order.createdat)}</div>
+                            ${order.payTime ? '<div class="text-muted small">支付：' + formatDateTime(order.payTime) + '</div>' : ''}
+                            ${order.refundTime ? '<div class="text-muted small">退款：' + formatDateTime(order.refundTime) + '</div>' : ''}
+                        </td>
+                        <td>
+                            <div class="btn-group-vertical btn-group-sm">
+                                <button class="btn btn-outline-info btn-action" onclick="viewOrderDetail(${order.id})">
+                                    <i class="bi bi-eye"></i> 详情
+                                </button>
+                                ${actionButtons}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            tbody.html(rows);
+        }
+
+        function getStatusBadge(status) {
+            const statusMap = {
+                '待支付': '<span class="badge bg-warning status-badge">待支付</span>',
+                '0': '<span class="badge bg-success status-badge">已支付</span>',
+                '1': '<span class="badge bg-info status-badge">申请退款</span>',
+                '2': '<span class="badge bg-secondary status-badge">已退款</span>',
+                '已关闭': '<span class="badge bg-dark status-badge">已关闭</span>'
+            };
+            return statusMap[status] || '<span class="badge bg-light text-dark status-badge">未知</span>';
+        }
+
+        function getActionButtons(order) {
+            let buttons = '';
+            
+            if (order.status === '1') {
+                buttons += `<button class="btn btn-outline-danger btn-action mt-1" onclick="showRefundModal(${order.id})">
+                    <i class="bi bi-arrow-return-left"></i> 执行退款
+                </button>`;
+            }
+            
+            if (order.status === '待支付') {
+                buttons += `<button class="btn btn-outline-secondary btn-action mt-1" onclick="closeOrder('${order.outTradeNo}')">
+                    <i class="bi bi-x-circle"></i> 关闭订单
+                </button>`;
+            }
+            
+            return buttons;
+        }
+
+        function renderPagination(pageData) {
+            const pagination = $('#pagination');
+            if (pageData.pages <= 1) {
+                pagination.empty();
+                return;
+            }
+
+            let paginationHtml = '';
+            
+            // 上一页
+            if (pageData.current > 1) {
+                paginationHtml += `<li class="page-item"><a class="page-link" onclick="loadOrders(${pageData.current - 1})">上一页</a></li>`;
+            }
+            
+            // 页码
+            for (let i = Math.max(1, pageData.current - 2); i <= Math.min(pageData.pages, pageData.current + 2); i++) {
+                const active = i === pageData.current ? 'active' : '';
+                paginationHtml += `<li class="page-item ${active}"><a class="page-link" onclick="loadOrders(${i})">${i}</a></li>`;
+            }
+            
+            // 下一页
+            if (pageData.current < pageData.pages) {
+                paginationHtml += `<li class="page-item"><a class="page-link" onclick="loadOrders(${pageData.current + 1})">下一页</a></li>`;
+            }
+            
+            pagination.html(paginationHtml);
+        }
+
+        function searchOrders() {
+            loadOrders(1);
+        }
+
+        function resetSearch() {
+            $('#searchOrderNo').val('');
+            $('#searchPhone').val('');
+            $('#searchName').val('');
+            $('#searchStatus').val('');
+            loadOrders(1);
+        }
+
+        function refreshOrders() {
+            loadOrders(currentPage);
+            showAlert('订单数据已刷新', 'success');
+        }
+
+        function viewOrderDetail(orderId) {
+            // 这里可以添加获取订单详情的API调用
+            $('#orderDetailBody').html('<div class="text-center"><div class="spinner-border" role="status"></div><div class="mt-2">正在加载订单详情...</div></div>');
+            $('#orderDetailModal').modal('show');
+            
+            // 模拟订单详情加载
+            setTimeout(() => {
+                $('#orderDetailBody').html(`
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>订单信息</h6>
+                            <div class="order-detail">
+                                <p><strong>订单ID：</strong>${orderId}</p>
+                                <p><strong>订单状态：</strong>已支付</p>
+                                <p><strong>创建时间：</strong>2024-01-15 10:30:00</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>收货信息</h6>
+                            <div class="order-detail">
+                                <p><strong>收货人：</strong>张三</p>
+                                <p><strong>联系电话：</strong>13800138000</p>
+                                <p><strong>收货地址：</strong>北京市朝阳区xxx街道</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <h6>商品信息</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr><th>商品名称</th><th>单价</th><th>数量</th><th>小计</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Java编程思想</td><td>¥89.00</td><td>2</td><td>¥178.00</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `);
+            }, 1000);
+        }
+
+        function showRefundModal(orderId) {
+            currentRefundOrderId = orderId;
+            $('#refundReason').val('');
+            $('#refundModal').modal('show');
+        }
+
+        function confirmRefund() {
+            if (!currentRefundOrderId) return;
+            
+            const reason = $('#refundReason').val().trim();
+            if (!reason) {
+                showAlert('请输入退款原因', 'warning');
+                return;
+            }
+            
+            $.ajax({
+                url: '/appoint/refund/execute',
+                type: 'POST',
+                data: {
+                    orderId: currentRefundOrderId,
+                    reason: reason
+                },
+                success: function(response) {
+                    $('#refundModal').modal('hide');
+                    if (response.code === 200) {
+                        showAlert('退款请求已提交', 'success');
+                        loadOrders(currentPage);
+                    } else {
+                        showAlert('退款失败：' + response.msg, 'danger');
+                    }
+                },
+                error: function() {
+                    showAlert('网络错误，请稍后重试', 'danger');
+                }
+            });
+        }
+
+        function closeOrder(outTradeNo) {
+            if (!confirm('确定要关闭此订单吗？')) return;
+            
+            $.ajax({
+                url: `/appoint/closeOrder/${outTradeNo}`,
+                type: 'GET',
+                success: function(response) {
+                    if (response.code === 200) {
+                        showAlert('订单已关闭', 'success');
+                        loadOrders(currentPage);
+                    } else {
+                        showAlert('关闭订单失败：' + response.msg, 'danger');
+                    }
+                },
+                error: function() {
+                    showAlert('网络错误，请稍后重试', 'danger');
+                }
+            });
+        }
+
+        function formatDateTime(dateTimeStr) {
+            if (!dateTimeStr) return '-';
+            const date = new Date(dateTimeStr);
+            return date.toLocaleString('zh-CN');
+        }
+
+        function showAlert(message, type = 'info') {
+            const alert = $(`
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `);
+            $('.main-content').prepend(alert);
+            setTimeout(() => alert.alert('close'), 5000);
+        }
+    </script>
+</body>
+</html> 
