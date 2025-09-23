@@ -31,7 +31,7 @@ public class PaySign {
             String signStr = appId + "\n" + timeStamp + "\n" + nonceStr + "\n" + packageStr + "\n";
             
             // 加载私钥
-            PrivateKey key = PemUtil.loadPrivateKey(privateKey);
+            PrivateKey key = PemUtil.loadPrivateKeyFromPath(privateKey);
             
             // 创建签名对象
             Signature signature = Signature.getInstance("SHA256withRSA");
