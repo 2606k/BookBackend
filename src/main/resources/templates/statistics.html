@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据统计 - 图书商城后台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background-color: #343a40;
+            padding-top: 20px;
+        }
+        .sidebar .nav-link {
+            color: #adb5bd;
+            margin: 5px 15px;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover {
+            color: #fff;
+            background-color: #495057;
+        }
+        .sidebar .nav-link.active {
+            color: #fff;
+            background-color: #007bff;
+        }
+        .main-content {
+            padding: 20px;
+        }
+        .stats-card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        .stats-card:hover {
+            transform: translateY(-2px);
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        .stats-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stats-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        .progress-bar {
+            height: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 侧边栏 -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <h5 class="text-white">图书商城管理</h5>
+                        <small class="text-muted">Admin Panel</small>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/dashboard">
+                                <i class="bi bi-house-door"></i> 控制台
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/books">
+                                <i class="bi bi-book"></i> 书籍管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/categories">
+                                <i class="bi bi-tags"></i> 分类管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/orders">
+                                <i class="bi bi-cart-check"></i> 订单管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/users">
+                                <i class="bi bi-people"></i> 用户管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/admin/statistics">
+                                <i class="bi bi-graph-up"></i> 数据统计
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/settings">
+                                <i class="bi bi-gear"></i> 系统设置
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link text-danger" href="/admin/logout" onclick="return confirm('确定要退出吗？')">
+                                <i class="bi bi-box-arrow-right"></i> 退出登录
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- 主内容区域 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <!-- 页面标题 -->
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">数据统计</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <button type="button" class="btn btn-outline-primary" onclick="refreshData()">
+                            <i class="bi bi-arrow-clockwise"></i> 刷新数据
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 核心统计指标 -->
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-3">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-book text-primary" style="font-size: 2.5rem;"></i>
+                                <div class="stats-number" id="totalBooks">0</div>
+                                <div class="stats-label">图书总数</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-tags text-success" style="font-size: 2.5rem;"></i>
+                                <div class="stats-number" id="totalCategories">0</div>
+                                <div class="stats-label">分类数量</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-people text-info" style="font-size: 2.5rem;"></i>
+                                <div class="stats-number" id="totalUsers">0</div>
+                                <div class="stats-label">用户总数</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-box text-warning" style="font-size: 2.5rem;"></i>
+                                <div class="stats-number" id="totalStock">0</div>
+                                <div class="stats-label">库存总数</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 图表和详细统计 -->
+                <div class="row">
+                    <!-- 库存统计 -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">库存状态分布</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="stockChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 分类书籍分布 -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">分类书籍分布</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="categoryChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 详细数据表格 -->
+                <div class="row">
+                    <!-- 库存预警 -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">库存预警</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="lowStockBooks">
+                                    <div class="text-center py-3">
+                                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                                        <span class="ms-2">加载中...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 分类统计详情 -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">分类统计详情</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="categoryDetails">
+                                    <div class="text-center py-3">
+                                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                                        <span class="ms-2">加载中...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 系统信息 -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">系统信息</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <table class="table table-borderless">
+                                            <tr>
+                                                <td><strong>系统版本:</strong></td>
+                                                <td>BookBackend v1.1.0</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>数据库状态:</strong></td>
+                                                <td><span class="badge bg-success">正常</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>最后更新:</strong></td>
+                                                <td id="lastUpdate">--</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <table class="table table-borderless">
+                                            <tr>
+                                                <td><strong>存储空间:</strong></td>
+                                                <td>
+                                                    <div class="progress" style="height: 10px;">
+                                                        <div class="progress-bar bg-info" style="width: 35%"></div>
+                                                    </div>
+                                                    <small class="text-muted">35% 已使用</small>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>内存使用:</strong></td>
+                                                <td>
+                                                    <div class="progress" style="height: 10px;">
+                                                        <div class="progress-bar bg-warning" style="width: 68%"></div>
+                                                    </div>
+                                                    <small class="text-muted">68% 已使用</small>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let stockChart, categoryChart;
+
+        $(document).ready(function() {
+            loadStatisticsData();
+            initCharts();
+            $('#lastUpdate').text(new Date().toLocaleString());
+        });
+
+        function loadStatisticsData() {
+            // 加载基础统计数据
+            $.get('/admin/api/statistics', function(response) {
+                if (response.code === 200) {
+                    const data = response.data;
+                    $('#totalBooks').text(data.totalBooks || 0);
+                    $('#totalCategories').text(data.totalCategories || 0);
+                    $('#totalUsers').text(data.totalUsers || 0);
+                    $('#totalStock').text(data.totalStock || 0);
+                    
+                    updateStockChart(data);
+                } else {
+                    showAlert('加载统计数据失败: ' + response.msg, 'danger');
+                }
+            }).fail(function() {
+                showAlert('加载统计数据失败，请检查网络连接', 'danger');
+            });
+
+            // 加载库存预警
+            loadLowStockBooks();
+            
+            // 加载分类详情
+            loadCategoryDetails();
+        }
+
+        function initCharts() {
+            // 库存状态图表
+            const stockCtx = document.getElementById('stockChart').getContext('2d');
+            stockChart = new Chart(stockCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['库存充足', '库存不足', '缺货'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#28a745', '#ffc107', '#dc3545'],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // 分类分布图表
+            const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+            categoryChart = new Chart(categoryCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '书籍数量',
+                        data: [],
+                        backgroundColor: ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6c757d'],
+                        borderColor: ['#0056b3', '#1e7e34', '#e0a800', '#c82333', '#545b62'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateStockChart(data) {
+            // 模拟库存状态数据
+            const sufficient = Math.floor((data.totalBooks || 0) * 0.7);
+            const low = data.lowStockCount || 0;
+            const outOfStock = Math.max(0, (data.totalBooks || 0) - sufficient - low);
+
+            stockChart.data.datasets[0].data = [sufficient, low, outOfStock];
+            stockChart.update();
+        }
+
+        function loadLowStockBooks() {
+            $.get('/api/books/lowStock?threshold=10', function(response) {
+                if (response.code === 200) {
+                    displayLowStockBooks(response.data);
+                } else {
+                    $('#lowStockBooks').html('<p class="text-muted">暂无库存预警数据</p>');
+                }
+            }).fail(function() {
+                $('#lowStockBooks').html('<p class="text-danger">加载库存预警失败</p>');
+            });
+        }
+
+        function displayLowStockBooks(books) {
+            const container = $('#lowStockBooks');
+            
+            if (books.length === 0) {
+                container.html('<p class="text-success"><i class="bi bi-check-circle"></i> 暂无库存预警</p>');
+                return;
+            }
+
+            let html = '';
+            books.forEach(book => {
+                const stockLevel = book.stock <= 5 ? 'danger' : 'warning';
+                html += `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <strong>${book.bookName}</strong>
+                            <br>
+                            <small class="text-muted">库存: ${book.stock}</small>
+                        </div>
+                        <span class="badge bg-${stockLevel}">${book.stock <= 5 ? '紧急' : '预警'}</span>
+                    </div>
+                `;
+            });
+            
+            container.html(html);
+        }
+
+        function loadCategoryDetails() {
+            $.get('/category/list', function(response) {
+                if (response.code === 200) {
+                    displayCategoryDetails(response.data);
+                    updateCategoryChart(response.data);
+                } else {
+                    $('#categoryDetails').html('<p class="text-muted">暂无分类数据</p>');
+                }
+            }).fail(function() {
+                $('#categoryDetails').html('<p class="text-danger">加载分类数据失败</p>');
+            });
+        }
+
+        function displayCategoryDetails(categories) {
+            const container = $('#categoryDetails');
+            
+            if (categories.length === 0) {
+                container.html('<p class="text-muted">暂无分类数据</p>');
+                return;
+            }
+
+            let html = '';
+            categories.forEach(category => {
+                html += `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <strong>${category.name}</strong>
+                            <br>
+                            <small class="text-muted">创建时间: ${new Date(category.createdat).toLocaleDateString()}</small>
+                        </div>
+                        <span class="badge bg-primary">分类</span>
+                    </div>
+                `;
+            });
+            
+            container.html(html);
+        }
+
+        function updateCategoryChart(categories) {
+            // 模拟每个分类的书籍数量
+            const labels = categories.map(cat => cat.name);
+            const data = categories.map(() => Math.floor(Math.random() * 20) + 1);
+
+            categoryChart.data.labels = labels;
+            categoryChart.data.datasets[0].data = data;
+            categoryChart.update();
+        }
+
+        function refreshData() {
+            loadStatisticsData();
+            $('#lastUpdate').text(new Date().toLocaleString());
+            showAlert('数据已刷新', 'success');
+        }
+
+        function showAlert(message, type = 'info') {
+            // 移除现有的提示
+            $('.alert').remove();
+            
+            const alert = $(`
+                <div class="alert alert-${type} alert-dismissible fade show position-fixed" 
+                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `);
+            
+            $('body').append(alert);
+            
+            // 自动关闭
+            setTimeout(() => {
+                alert.alert('close');
+            }, 3000);
+        }
+    </script>
+</body>
+</html> 

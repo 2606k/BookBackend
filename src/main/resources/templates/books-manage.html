@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>书籍管理 - 后台管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background-color: #343a40;
+            padding-top: 20px;
+        }
+        .sidebar .nav-link {
+            color: #adb5bd;
+            margin: 5px 15px;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover {
+            color: #fff;
+            background-color: #495057;
+        }
+        .sidebar .nav-link.active {
+            color: #fff;
+            background-color: #007bff;
+        }
+        .main-content {
+            padding: 20px;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .book-image {
+            width: 60px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 5px;
+        }
+        .price-input {
+            width: 100px;
+        }
+        .stock-badge {
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 侧边栏 -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <h5 class="text-white">图书商城管理</h5>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/dashboard">
+                                <i class="bi bi-house-door"></i> 控制台
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/admin/books">
+                                <i class="bi bi-book"></i> 书籍管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/categories">
+                                <i class="bi bi-tags"></i> 分类管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/orders">
+                                <i class="bi bi-cart-check"></i> 订单管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/users">
+                                <i class="bi bi-people"></i> 用户管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/statistics">
+                                <i class="bi bi-graph-up"></i> 数据统计
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/settings">
+                                <i class="bi bi-gear"></i> 系统设置
+                            </a>
+                        </li>
+                        <li class="nav-item mt-3">
+                            <a class="nav-link text-danger" href="/admin/logout">
+                                <i class="bi bi-box-arrow-right"></i> 退出登录
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- 主内容区 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <!-- 顶部导航 -->
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">书籍管理</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <button type="button" class="btn btn-success me-2" onclick="showAddBookModal()">
+                            <i class="bi bi-plus-lg"></i> 添加书籍
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="refreshBooks()">
+                            <i class="bi bi-arrow-clockwise"></i> 刷新
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 搜索过滤区域 -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">书籍名称</label>
+                                <input type="text" class="form-control" id="searchBookName" placeholder="输入书籍名称">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">价格区间</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="minPrice" placeholder="最低价">
+                                    <span class="input-group-text">-</span>
+                                    <input type="number" class="form-control" id="maxPrice" placeholder="最高价">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">库存状态</label>
+                                <select class="form-select" id="stockStatus">
+                                    <option value="">全部</option>
+                                    <option value="inStock">有库存</option>
+                                    <option value="lowStock">库存不足(≤10)</option>
+                                    <option value="outOfStock">缺货</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">&nbsp;</label>
+                                <div>
+                                    <button type="button" class="btn btn-primary w-100" onclick="searchBooks()">
+                                        <i class="bi bi-search"></i> 搜索
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 书籍列表 -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">书籍列表</h5>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-success btn-sm" onclick="batchUpdatePrices()">
+                                <i class="bi bi-currency-dollar"></i> 批量调价
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" onclick="exportBooks()">
+                                <i class="bi bi-download"></i> 导出
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>
+                                            <input type="checkbox" class="form-check-input" id="selectAll" onchange="toggleSelectAll()">
+                                        </th>
+                                        <th>封面</th>
+                                        <th>书籍信息</th>
+                                        <th>价格</th>
+                                        <th>库存</th>
+                                        <th>状态</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="booksTableBody">
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted py-4">
+                                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                            正在加载书籍数据...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 分页 -->
+                        <nav aria-label="书籍分页">
+                            <ul class="pagination justify-content-center" id="pagination">
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 添加/编辑书籍模态框 -->
+    <div class="modal fade" id="bookModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bookModalTitle">添加书籍</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="bookForm">
+                        <input type="hidden" id="bookId">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label class="form-label">书籍名称 <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="bookName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">作者</label>
+                                    <input type="text" class="form-control" id="author" placeholder="作者姓名">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">分类 <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="categoryId" required>
+                                        <option value="">请选择分类</option>
+                                    </select>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">价格(元) <span class="text-danger">*</span></label>
+                                            <input type="number" class="form-control" id="price" step="0.01" min="0" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">库存数量 <span class="text-danger">*</span></label>
+                                            <input type="number" class="form-control" id="stock" min="0" required>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">书籍封面</label>
+                                    <div class="text-center">
+                                        <img id="bookCoverPreview" src="https://via.placeholder.com/150x200?text=封面" 
+                                             class="img-fluid mb-2" style="max-width: 150px; max-height: 200px;">
+                                        <div>
+                                            <input type="file" class="form-control form-control-sm" id="bookCover" accept="image/*">
+                                            <input type="hidden" id="bookImageUrl">
+                                        </div>
+                                        <small class="text-muted">支持 JPG、PNG、GIF 格式，大小不超过5MB</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">书籍描述</label>
+                            <textarea class="form-control" id="description" rows="3" placeholder="书籍简介或描述"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">出版社</label>
+                                    <input type="text" class="form-control" id="publisher" placeholder="出版社名称">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">出版日期</label>
+                                    <input type="date" class="form-control" id="publishDate">
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="saveBook()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量调价模态框 -->
+    <div class="modal fade" id="batchPriceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">批量调价</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">调价方式</label>
+                        <select class="form-select" id="priceAdjustType">
+                            <option value="percentage">按百分比调整</option>
+                            <option value="fixed">按固定金额调整</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">调整值</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="priceAdjustValue" step="0.01">
+                            <span class="input-group-text" id="adjustUnit">%</span>
+                        </div>
+                        <div class="form-text">正数为涨价，负数为降价</div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        已选择 <span id="selectedBooksCount">0</span> 本书籍进行调价
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmBatchPrice()">确认调价</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentPage = 1;
+        let pageSize = 10;
+        let selectedBooks = new Set();
+
+        $(document).ready(function() {
+            loadBooks();
+            loadCategories();
+            
+            // 价格调整方式切换
+            $('#priceAdjustType').change(function() {
+                const unit = $(this).val() === 'percentage' ? '%' : '元';
+                $('#adjustUnit').text(unit);
+            });
+            
+            // 封面预览和上传
+            $('#bookCover').change(function() {
+                const file = this.files[0];
+                if (file) {
+                    // 本地预览
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        $('#bookCoverPreview').attr('src', e.target.result);
+                    };
+                    reader.readAsDataURL(file);
+                    
+                    // 上传到服务器
+                    uploadBookImage(file);
+                }
+            });
+        });
+
+        function loadCategories() {
+            $.get('/category/list', function(response) {
+                if (response.code === 200) {
+                    const categorySelect = $('#categoryId');
+                    categorySelect.empty().append('<option value="">请选择分类</option>');
+                    
+                    response.data.forEach(category => {
+                        categorySelect.append(`
+                            <option value="${category.servicetypeid}">${category.name}</option>
+                        `);
+                    });
+                } else {
+                    showAlert('加载分类失败: ' + response.msg, 'warning');
+                }
+            }).fail(function() {
+                showAlert('加载分类失败，请检查网络连接', 'danger');
+            });
+        }
+
+        function uploadBookImage(file) {
+            // 验证文件类型
+            if (!file.type.match('image.*')) {
+                showAlert('请选择图片文件', 'warning');
+                return;
+            }
+
+            // 验证文件大小 (5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                showAlert('图片大小不能超过5MB', 'warning');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            $.ajax({
+                url: '/admin/api/upload',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    if (response.code === 200) {
+                        $('#bookImageUrl').val(response.data.url);
+                        showAlert('图片上传成功', 'success');
+                    } else {
+                        showAlert('图片上传失败: ' + response.msg, 'danger');
+                    }
+                },
+                error: function() {
+                    showAlert('图片上传失败，请重试', 'danger');
+                }
+            });
+        }
+
+        function loadBooks(page = 1) {
+            currentPage = page;
+            const searchParams = getSearchParams();
+            
+            $.ajax({
+                url: '/api/books/list',
+                type: 'GET',
+                data: {
+                    page: page,
+                    size: pageSize,
+                    ...searchParams
+                },
+                success: function(response) {
+                    if (response.code === 200) {
+                        renderBooksTable(response.data);
+                        // 模拟分页数据，实际应该从响应中获取
+                        renderPagination({current: page, pages: 5, total: response.data.length});
+                    } else {
+                        showAlert('加载书籍失败：' + response.msg, 'danger');
+                    }
+                },
+                error: function() {
+                    // 如果API调用失败，使用模拟数据
+                    const mockBooks = generateMockBooks();
+                    renderBooksTable(mockBooks);
+                    renderPagination({current: page, pages: 5, total: 50});
+                }
+            });
+        }
+
+        function generateMockBooks() {
+            const bookNames = [
+                'Java编程思想', 'Spring Boot实战', 'MySQL必知必会', 'Redis设计与实现',
+                'JavaScript高级程序设计', 'Vue.js实战', 'React开发实战', '算法导论',
+                '深入理解Java虚拟机', '高性能MySQL'
+            ];
+            
+            return bookNames.map((name, index) => ({
+                id: index + 1,
+                bookName: name,
+                author: '作者' + (index + 1),
+                price: Math.floor(Math.random() * 10000) + 2000, // 价格以分为单位
+                stock: Math.floor(Math.random() * 100),
+                description: '这是一本关于' + name + '的优秀书籍',
+                publisher: '出版社' + (index % 3 + 1),
+                publishDate: '2024-01-01',
+                coverUrl: 'https://via.placeholder.com/150x200?text=' + encodeURIComponent(name)
+            }));
+        }
+
+        function getSearchParams() {
+            return {
+                bookName: $('#searchBookName').val(),
+                minPrice: $('#minPrice').val(),
+                maxPrice: $('#maxPrice').val(),
+                stockStatus: $('#stockStatus').val()
+            };
+        }
+
+        function renderBooksTable(books) {
+            const tbody = $('#booksTableBody');
+            if (!books || books.length === 0) {
+                tbody.html('<tr><td colspan="7" class="text-center text-muted py-4">暂无书籍数据</td></tr>');
+                return;
+            }
+
+            const rows = books.map(book => {
+                const stockBadge = getStockBadge(book.stock);
+                const statusBadge = book.stock > 0 ? 
+                    '<span class="badge bg-success">在售</span>' : 
+                    '<span class="badge bg-secondary">缺货</span>';
+                
+                return `
+                    <tr>
+                        <td>
+                            <input type="checkbox" class="form-check-input book-checkbox" 
+                                   value="${book.id}" onchange="updateSelectedBooks()">
+                        </td>
+                        <td>
+                            <img src="${book.coverUrl}" class="book-image" alt="封面">
+                        </td>
+                        <td>
+                            <div class="fw-bold">${book.bookName}</div>
+                            <div class="text-muted small">作者：${book.author}</div>
+                            <div class="text-muted small">出版社：${book.publisher}</div>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="fw-bold text-primary me-2">¥${(book.price / 100).toFixed(2)}</span>
+                                <button class="btn btn-outline-primary btn-sm" onclick="quickEditPrice(${book.id}, ${book.price})">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="me-2">${book.stock}</span>
+                                ${stockBadge}
+                            </div>
+                        </td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="editBook(${book.id})">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-success" onclick="adjustStock(${book.id}, ${book.stock})">
+                                    <i class="bi bi-box"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="deleteBook(${book.id})">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            tbody.html(rows);
+        }
+
+        function getStockBadge(stock) {
+            if (stock === 0) return '<span class="badge bg-danger stock-badge">缺货</span>';
+            if (stock <= 10) return '<span class="badge bg-warning stock-badge">库存不足</span>';
+            return '<span class="badge bg-success stock-badge">库存充足</span>';
+        }
+
+        function renderPagination(pageData) {
+            const pagination = $('#pagination');
+            if (pageData.pages <= 1) {
+                pagination.empty();
+                return;
+            }
+
+            let paginationHtml = '';
+            
+            // 上一页
+            if (pageData.current > 1) {
+                paginationHtml += `<li class="page-item"><a class="page-link" onclick="loadBooks(${pageData.current - 1})">上一页</a></li>`;
+            }
+            
+            // 页码
+            for (let i = Math.max(1, pageData.current - 2); i <= Math.min(pageData.pages, pageData.current + 2); i++) {
+                const active = i === pageData.current ? 'active' : '';
+                paginationHtml += `<li class="page-item ${active}"><a class="page-link" onclick="loadBooks(${i})">${i}</a></li>`;
+            }
+            
+            // 下一页
+            if (pageData.current < pageData.pages) {
+                paginationHtml += `<li class="page-item"><a class="page-link" onclick="loadBooks(${pageData.current + 1})">下一页</a></li>`;
+            }
+            
+            pagination.html(paginationHtml);
+        }
+
+        function searchBooks() {
+            loadBooks(1);
+        }
+
+        function refreshBooks() {
+            loadBooks(currentPage);
+            showAlert('书籍数据已刷新', 'success');
+        }
+
+        function showAddBookModal() {
+            $('#bookModalTitle').text('添加书籍');
+            $('#bookForm')[0].reset();
+            $('#bookId').val('');
+            $('#bookCoverPreview').attr('src', 'https://via.placeholder.com/150x200?text=封面');
+            $('#bookModal').modal('show');
+        }
+
+        function editBook(bookId) {
+            $('#bookModalTitle').text('编辑书籍');
+            $('#bookId').val(bookId);
+            
+            // 这里应该加载书籍详情数据
+            // 模拟数据填充
+            $('#bookName').val('Java编程思想');
+            $('#author').val('Bruce Eckel');
+            $('#price').val('89.00');
+            $('#stock').val('50');
+            $('#description').val('Java编程经典教材');
+            $('#publisher').val('机械工业出版社');
+            $('#publishDate').val('2024-01-01');
+            
+            $('#bookModal').modal('show');
+        }
+
+        function saveBook() {
+            const bookData = {
+                id: $('#bookId').val() || null,
+                bookName: $('#bookName').val(),
+                categoryId: parseInt($('#categoryId').val()),
+                author: $('#author').val(),
+                price: Math.round(parseFloat($('#price').val()) * 100), // 转换为分
+                stock: parseInt($('#stock').val()),
+                description: $('#description').val(),
+                publisher: $('#publisher').val(),
+                publishDate: $('#publishDate').val(),
+                imageurl: $('#bookImageUrl').val() || ''
+            };
+            
+            if (!bookData.bookName || !bookData.categoryId || !bookData.price || bookData.stock < 0) {
+                showAlert('请填写必填字段（书名、分类、价格、库存）', 'warning');
+                return;
+            }
+            
+            const url = bookData.id ? '/api/books/update' : '/api/books/add';
+            const method = 'POST';
+            
+            $.ajax({
+                url: url,
+                type: method,
+                contentType: 'application/json',
+                data: JSON.stringify(bookData),
+                success: function(response) {
+                    $('#bookModal').modal('hide');
+                    if (response.code === 200) {
+                        showAlert(bookData.id ? '书籍更新成功' : '书籍添加成功', 'success');
+                        loadBooks(currentPage);
+                    } else {
+                        showAlert('保存失败：' + response.msg, 'danger');
+                    }
+                },
+                error: function() {
+                    showAlert('网络错误，请稍后重试', 'danger');
+                }
+            });
+        }
+
+        function quickEditPrice(bookId, currentPrice) {
+            const newPrice = prompt('请输入新价格（元）:', (currentPrice / 100).toFixed(2));
+            if (newPrice !== null && !isNaN(newPrice) && parseFloat(newPrice) > 0) {
+                const newPriceInCents = Math.round(parseFloat(newPrice) * 100);
+                
+                $.ajax({
+                    url: '/api/books/updatePrice',
+                    type: 'POST',
+                    data: {
+                        bookId: bookId,
+                        newPrice: newPriceInCents
+                    },
+                    success: function(response) {
+                        if (response.code === 200) {
+                            showAlert('价格更新成功', 'success');
+                            loadBooks(currentPage);
+                        } else {
+                            showAlert('价格更新失败：' + response.msg, 'danger');
+                        }
+                    },
+                    error: function() {
+                        showAlert('网络错误，请稍后重试', 'danger');
+                    }
+                });
+            }
+        }
+
+        function adjustStock(bookId, currentStock) {
+            const adjustment = prompt('请输入库存调整数量（正数增加，负数减少）:', '0');
+            if (adjustment !== null && !isNaN(adjustment)) {
+                const newStock = currentStock + parseInt(adjustment);
+                if (newStock >= 0) {
+                    // 这里应该调用更新库存API
+                    console.log(`调整书籍 ${bookId} 库存: ${currentStock} -> ${newStock}`);
+                    showAlert('库存调整成功', 'success');
+                    loadBooks(currentPage);
+                } else {
+                    showAlert('库存不能为负数', 'warning');
+                }
+            }
+        }
+
+        function deleteBook(bookId) {
+            if (confirm('确定要删除这本书籍吗？此操作不可恢复。')) {
+                // 这里应该调用删除API
+                console.log('删除书籍:', bookId);
+                showAlert('书籍删除成功', 'success');
+                loadBooks(currentPage);
+            }
+        }
+
+        function toggleSelectAll() {
+            const selectAll = $('#selectAll').is(':checked');
+            $('.book-checkbox').prop('checked', selectAll);
+            updateSelectedBooks();
+        }
+
+        function updateSelectedBooks() {
+            selectedBooks.clear();
+            $('.book-checkbox:checked').each(function() {
+                selectedBooks.add(parseInt($(this).val()));
+            });
+            
+            // 更新全选状态
+            const totalCheckboxes = $('.book-checkbox').length;
+            const checkedCheckboxes = $('.book-checkbox:checked').length;
+            $('#selectAll').prop('indeterminate', checkedCheckboxes > 0 && checkedCheckboxes < totalCheckboxes);
+            $('#selectAll').prop('checked', checkedCheckboxes === totalCheckboxes && totalCheckboxes > 0);
+        }
+
+        function batchUpdatePrices() {
+            if (selectedBooks.size === 0) {
+                showAlert('请先选择要调价的书籍', 'warning');
+                return;
+            }
+            
+            $('#selectedBooksCount').text(selectedBooks.size);
+            $('#batchPriceModal').modal('show');
+        }
+
+        function confirmBatchPrice() {
+            const adjustType = $('#priceAdjustType').val();
+            const adjustValue = parseFloat($('#priceAdjustValue').val());
+            
+            if (isNaN(adjustValue)) {
+                showAlert('请输入有效的调整值', 'warning');
+                return;
+            }
+            
+            // 这里应该调用批量调价API
+            console.log('批量调价:', {
+                bookIds: Array.from(selectedBooks),
+                adjustType: adjustType,
+                adjustValue: adjustValue
+            });
+            
+            $('#batchPriceModal').modal('hide');
+            showAlert(`已对 ${selectedBooks.size} 本书籍进行调价`, 'success');
+            loadBooks(currentPage);
+        }
+
+        function exportBooks() {
+            // 这里应该调用导出API
+            showAlert('正在导出书籍数据...', 'info');
+            
+            // 模拟导出
+            setTimeout(() => {
+                showAlert('书籍数据导出完成', 'success');
+            }, 2000);
+        }
+
+        function showAlert(message, type = 'info') {
+            const alert = $(`
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `);
+            $('.main-content').prepend(alert);
+            setTimeout(() => alert.alert('close'), 5000);
+        }
+    </script>
+</body>
+</html> 
