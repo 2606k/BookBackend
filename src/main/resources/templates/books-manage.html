@@ -365,7 +365,7 @@
         });
 
         function loadCategories() {
-            $.get('/category/list', function(response) {
+            $.get('/category/all', function(response) {
                 if (response.code === 200) {
                     const categorySelect = $('#categoryId');
                     categorySelect.empty().append('<option value="">请选择分类</option>');
@@ -433,9 +433,21 @@
                 },
                 success: function(response) {
                     if (response.code === 200) {
-                        renderBooksTable(response.data);
-                        // 模拟分页数据，实际应该从响应中获取
-                        renderPagination({current: page, pages: 5, total: response.data.length});
+                        const data = response.data;
+                        // 如果是新API格式（有分页信息）
+                        if (data.records) {
+                            renderBooksTable(data.records);
+                            renderPagination({
+                                current: data.current,
+                                pages: data.pages,
+                                total: data.total,
+                                size: data.size
+                            });
+                        } else {
+                            // 兼容旧API格式
+                            renderBooksTable(data);
+                            renderPagination({current: page, pages: 5, total: data.length});
+                        }
                     } else {
                         showAlert('加载书籍失败：' + response.msg, 'danger');
                     }

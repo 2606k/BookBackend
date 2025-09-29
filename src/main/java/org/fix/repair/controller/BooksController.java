@@ -1,12 +1,17 @@
 package org.fix.repair.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.fix.repair.common.R;
 import org.fix.repair.entity.books;
+import org.fix.repair.entity.categories;
 import org.fix.repair.service.BooksService;
+import org.fix.repair.service.CategoriesService;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -20,22 +25,86 @@ import java.util.Map;
 public class BooksController {
 
     private final BooksService booksService;
+    private final CategoriesService categoriesService;
 
     /**
-     * 获取书籍列表
+     * 获取书籍列表（带分页和搜索）
      */
     @GetMapping("/list")
-    public R<List<books>> getBooksList(@RequestParam(defaultValue = "1") Integer page,
-                                      @RequestParam(defaultValue = "10") Integer size,
-                                      @RequestParam(required = false) String bookName,
-                                      @RequestParam(required = false) Integer minPrice,
-                                      @RequestParam(required = false) Integer maxPrice,
-                                      @RequestParam(required = false) String stockStatus) {
+    public R<Map<String, Object>> getBooksList(@RequestParam(defaultValue = "1") Integer page,
+                                               @RequestParam(defaultValue = "10") Integer size,
+                                               @RequestParam(required = false) String bookName,
+                                               @RequestParam(required = false) Integer minPrice,
+                                               @RequestParam(required = false) Integer maxPrice,
+                                               @RequestParam(required = false) String stockStatus,
+                                               @RequestParam(required = false) Long categoryId) {
         try {
-            // TODO: 实现分页查询逻辑
-            List<books> booksList = booksService.list();
-            log.info("获取书籍列表成功，共 {} 本", booksList.size());
-            return R.ok(booksList);
+            // 创建分页对象
+            Page<books> pageObj = new Page<>(page, size);
+            
+            // 构建查询条件
+            LambdaQueryWrapper<books> queryWrapper = new LambdaQueryWrapper<>();
+            
+            // 书名模糊查询
+            if (bookName != null && !bookName.trim().isEmpty()) {
+                queryWrapper.like(books::getBookName, bookName.trim());
+            }
+            
+            // 价格范围查询（价格以分为单位）
+            if (minPrice != null) {
+                queryWrapper.ge(books::getPrice, minPrice * 100);
+            }
+            if (maxPrice != null) {
+                queryWrapper.le(books::getPrice, maxPrice * 100);
+            }
+            
+            // 分类查询
+            if (categoryId != null) {
+                queryWrapper.eq(books::getCategoryId, categoryId);
+            }
+            
+            // 库存状态查询
+            if (stockStatus != null && !stockStatus.trim().isEmpty()) {
+                switch (stockStatus) {
+                    case "inStock":
+                        queryWrapper.gt(books::getStock, 0);
+                        break;
+                    case "lowStock":
+                        queryWrapper.le(books::getStock, 10).gt(books::getStock, 0);
+                        break;
+                    case "outOfStock":
+                        queryWrapper.eq(books::getStock, 0);
+                        break;
+                }
+            }
+            
+            // 按创建时间倒序
+            queryWrapper.orderByDesc(books::getCreatedat);
+            
+            // 执行分页查询
+            Page<books> result = booksService.page(pageObj, queryWrapper);
+            
+            // 为每本书添加分类信息
+            List<books> booksList = result.getRecords();
+            for (books book : booksList) {
+                if (book.getCategoryId() != null) {
+                    categories category = categoriesService.getById(book.getCategoryId());
+                    if (category != null) {
+                        // 可以添加分类名称字段到书籍实体中，或者通过Map返回
+                    }
+                }
+            }
+            
+            // 构建返回结果
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("records", booksList);
+            responseData.put("total", result.getTotal());
+            responseData.put("pages", result.getPages());
+            responseData.put("current", result.getCurrent());
+            responseData.put("size", result.getSize());
+            
+            log.info("获取书籍列表成功，页码: {}, 每页: {}, 总数: {}", page, size, result.getTotal());
+            return R.ok(responseData);
         } catch (Exception e) {
             log.error("获取书籍列表失败", e);
             return R.error("获取书籍列表失败: " + e.getMessage());
@@ -69,6 +138,9 @@ public class BooksController {
             if (book.getBookName() == null || book.getBookName().trim().isEmpty()) {
                 return R.error("书籍名称不能为空");
             }
+            if (book.getCategoryId() == null) {
+                return R.error("分类不能为空");
+            }
             if (book.getPrice() == null || book.getPrice() <= 0) {
                 return R.error("价格必须大于0");
             }
@@ -76,9 +148,19 @@ public class BooksController {
                 return R.error("库存不能为负数");
             }
 
+            // 校验分类是否存在
+            categories category = categoriesService.getById(book.getCategoryId());
+            if (category == null) {
+                return R.error("选择的分类不存在");
+            }
+
+            // 设置创建时间
+            book.setCreatedat(new java.util.Date());
+
             boolean success = booksService.save(book);
             if (success) {
-                log.info("添加书籍成功: {}", book.getBookName());
+                log.info("添加书籍成功: {}，作者: {}，价格: {}分", 
+                        book.getBookName(), book.getAuthor(), book.getPrice());
                 return R.ok("添加书籍成功");
             } else {
                 return R.error("添加书籍失败");
@@ -108,6 +190,9 @@ public class BooksController {
             if (book.getBookName() == null || book.getBookName().trim().isEmpty()) {
                 return R.error("书籍名称不能为空");
             }
+            if (book.getCategoryId() == null) {
+                return R.error("分类不能为空");
+            }
             if (book.getPrice() == null || book.getPrice() <= 0) {
                 return R.error("价格必须大于0");
             }
@@ -115,9 +200,19 @@ public class BooksController {
                 return R.error("库存不能为负数");
             }
 
+            // 校验分类是否存在
+            categories category = categoriesService.getById(book.getCategoryId());
+            if (category == null) {
+                return R.error("选择的分类不存在");
+            }
+
+            // 保留原有的创建时间
+            book.setCreatedat(existingBook.getCreatedat());
+
             boolean success = booksService.updateById(book);
             if (success) {
-                log.info("更新书籍成功: {}", book.getBookName());
+                log.info("更新书籍成功: {}，作者: {}，价格: {}分", 
+                        book.getBookName(), book.getAuthor(), book.getPrice());
                 return R.ok("更新书籍成功");
             } else {
                 return R.error("更新书籍失败");

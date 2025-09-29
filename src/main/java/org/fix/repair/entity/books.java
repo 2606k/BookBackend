@@ -30,6 +30,24 @@ public class books {
     private String bookName;
 
     /**
+     * 作者
+     */
+    @TableField(value = "author")
+    private String author;
+
+    /**
+     * 出版社
+     */
+    @TableField(value = "publisher")
+    private String publisher;
+
+    /**
+     * 出版日期
+     */
+    @TableField(value = "publish_date")
+    private String publishDate;
+
+    /**
      * 图书图片
      */
     @TableField(value = "image_url")

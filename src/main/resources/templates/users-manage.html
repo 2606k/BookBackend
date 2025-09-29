@@ -298,13 +298,31 @@
             });
         });
 
-        function loadUsers() {
-            $.get('/admin/api/users', function(response) {
+        function loadUsers(page = 1, keyword = '') {
+            $.get('/admin/api/users', {
+                page: page,
+                size: 10,
+                keyword: keyword
+            }, function(response) {
                 if (response.code === 200) {
-                    allUsers = response.data;
-                    currentUsers = allUsers;
-                    displayUsers(currentUsers);
-                    updateStatistics(allUsers);
+                    const data = response.data;
+                    // 如果是新API格式（有分页信息）
+                    if (data.records) {
+                        allUsers = data.records;
+                        currentUsers = allUsers;
+                        displayUsers(currentUsers);
+                        updateStatistics(data.records);
+                        // 如果需要分页控件，可以在这里添加
+                        if (data.pages > 1) {
+                            renderPagination(data);
+                        }
+                    } else {
+                        // 兼容旧API格式
+                        allUsers = data;
+                        currentUsers = allUsers;
+                        displayUsers(currentUsers);
+                        updateStatistics(allUsers);
+                    }
                 } else {
                     showAlert('加载用户失败: ' + response.msg, 'danger');
                 }
@@ -319,6 +337,11 @@
                     </tr>
                 `);
             });
+        }
+
+        function renderPagination(pageData) {
+            // 如果需要用户列表分页，可以在这里实现分页控件
+            // 现在暂时省略
         }
 
         function displayUsers(users) {
