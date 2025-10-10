@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.fix.repair.common.R;
-import org.fix.repair.entity.WeddingUser;
+import org.fix.repair.entity.user;
 import org.fix.repair.entity.books;
 import org.fix.repair.mapper.WeddingUserMapper;
 import org.fix.repair.service.WeddingUserService;
@@ -16,7 +16,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,14 +47,14 @@ public class AdminController {
     public R<Long> adminRegister(@RequestBody Map<String, Object> userInfo) {
         try {
             // 检查手机号是否已存在
-            LambdaQueryWrapper<WeddingUser> queryWrapper = new LambdaQueryWrapper<>();
-            queryWrapper.eq(WeddingUser::getPhone, userInfo.get("phone"));
-            WeddingUser existingUser = userMapper.selectOne(queryWrapper);
+            LambdaQueryWrapper<user> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(user::getPhone, userInfo.get("phone"));
+            user existingUser = userMapper.selectOne(queryWrapper);
             if (existingUser != null) {
                 return R.error("该手机号已被注册");
             }
 
-            WeddingUser user = new WeddingUser();
+            user user = new user();
             user.setUsername((String) userInfo.get("userName"));
             user.setPhone((String) userInfo.get("phone"));
             user.setPassword((String) userInfo.get("password"));
@@ -74,12 +73,12 @@ public class AdminController {
      */
     @PostMapping("/login")
     @ResponseBody
-    public R<WeddingUser> adminLogin(@RequestBody Map<String, Object> userInfo) {
+    public R<user> adminLogin(@RequestBody Map<String, Object> userInfo) {
         try {
-            LambdaQueryWrapper<WeddingUser> queryWrapper = new LambdaQueryWrapper<>();
-            queryWrapper.eq(WeddingUser::getPhone, userInfo.get("phone"))
-                    .eq(WeddingUser::getPassword, userInfo.get("password"));
-            WeddingUser user = userMapper.selectOne(queryWrapper);
+            LambdaQueryWrapper<user> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(user::getPhone, userInfo.get("phone"))
+                    .eq(user::getPassword, userInfo.get("password"));
+            user user = userMapper.selectOne(queryWrapper);
             if (user == null) {
                 return R.error("手机号或密码错误");
             }
@@ -187,23 +186,23 @@ public class AdminController {
                                               @RequestParam(required = false) String keyword) {
         try {
             // 创建分页对象
-            Page<WeddingUser> pageObj = new Page<>(page, size);
+            Page<user> pageObj = new Page<>(page, size);
             
             // 构建查询条件
-            LambdaQueryWrapper<WeddingUser> queryWrapper = new LambdaQueryWrapper<>();
+            LambdaQueryWrapper<user> queryWrapper = new LambdaQueryWrapper<>();
             
             // 关键词搜索（用户名或手机号）
             if (keyword != null && !keyword.trim().isEmpty()) {
-                queryWrapper.like(WeddingUser::getUsername, keyword.trim())
+                queryWrapper.like(user::getUsername, keyword.trim())
                           .or()
-                          .like(WeddingUser::getPhone, keyword.trim());
+                          .like(user::getPhone, keyword.trim());
             }
             
             // 按创建时间倒序
-            queryWrapper.orderByDesc(WeddingUser::getCreatedat);
+            queryWrapper.orderByDesc(user::getCreatedat);
             
             // 执行分页查询
-            Page<WeddingUser> result = userService.page(pageObj, queryWrapper);
+            Page<user> result = userService.page(pageObj, queryWrapper);
             
             // 构建返回结果
             Map<String, Object> responseData = new HashMap<>();
@@ -228,7 +227,7 @@ public class AdminController {
     @ResponseBody
     public R<String> deleteUser(@PathVariable Long userId) {
         try {
-            WeddingUser user = userService.getById(userId);
+            user user = userService.getById(userId);
             if (user == null) {
                 return R.error("用户不存在");
             }
@@ -251,18 +250,18 @@ public class AdminController {
      */
     @GetMapping("/api/users/search")
     @ResponseBody
-    public R<List<WeddingUser>> searchUsers(@RequestParam String keyword) {
+    public R<List<user>> searchUsers(@RequestParam String keyword) {
         try {
             if (keyword == null || keyword.trim().isEmpty()) {
                 return R.error("搜索关键词不能为空");
             }
             
-            LambdaQueryWrapper<WeddingUser> queryWrapper = new LambdaQueryWrapper<>();
-            queryWrapper.like(WeddingUser::getUsername, keyword.trim())
+            LambdaQueryWrapper<user> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.like(user::getUsername, keyword.trim())
                     .or()
-                    .like(WeddingUser::getPhone, keyword.trim());
+                    .like(user::getPhone, keyword.trim());
             
-            List<WeddingUser> users = userService.list(queryWrapper);
+            List<user> users = userService.list(queryWrapper);
             log.info("搜索用户: {}，结果数量: {}", keyword, users.size());
             return R.ok(users);
         } catch (Exception e) {

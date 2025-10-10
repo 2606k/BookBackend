@@ -1,13 +1,11 @@
 package org.fix.repair.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import org.fix.repair.entity.WeddingUser;
+import org.fix.repair.entity.user;
 import org.fix.repair.mapper.WeddingUserMapper;
 import org.fix.repair.service.WeddingUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
-import java.util.Map;
 
 
 /**
@@ -17,7 +15,7 @@ import java.util.Map;
 */
 @Service
 @RequiredArgsConstructor
-public class WeddingUserServiceImpl extends ServiceImpl<WeddingUserMapper, WeddingUser>
+public class WeddingUserServiceImpl extends ServiceImpl<WeddingUserMapper, user>
     implements WeddingUserService {
 
 

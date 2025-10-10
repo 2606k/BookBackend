@@ -14,7 +14,7 @@ import java.util.Date;
  */
 @TableName(value ="user")
 @Data
-public class WeddingUser {
+public class user {
     /**
      * 用户唯一ID
      */

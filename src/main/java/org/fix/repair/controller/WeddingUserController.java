@@ -4,16 +4,13 @@ package org.fix.repair.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.fix.repair.common.R;
-import org.fix.repair.entity.WeddingUser;
-import org.fix.repair.entity.appointments;
+import org.fix.repair.entity.user;
 import org.fix.repair.mapper.WeddingUserMapper;
 import org.fix.repair.mapper.AppointmentsMapper;
 import org.fix.repair.service.WeddingUserService;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -44,7 +41,7 @@ public class WeddingUserController {
     @ResponseBody
     public R<Long> saveUserInfo(@RequestBody Map<String, Object> userInfo) {
         try {
-            WeddingUser user = new WeddingUser();
+            user user = new user();
             user.setUsername((String) userInfo.get("userName"));
             user.setAvatarUrl((String) userInfo.get("avatarUrl"));
             user.setPhone((String) userInfo.get("phone"));
@@ -65,12 +62,12 @@ public class WeddingUserController {
      */
     @PostMapping("/checklogin")
     @ResponseBody
-    public R<WeddingUser> login(@RequestBody Map<String, Object> userInfo) {
+    public R<user> login(@RequestBody Map<String, Object> userInfo) {
         try {
-            LambdaQueryWrapper<WeddingUser> queryWrapper = new LambdaQueryWrapper<>();
-            queryWrapper.eq(WeddingUser::getPhone, userInfo.get("phone"))
-                    .eq(WeddingUser::getPassword, userInfo.get("password"));
-            WeddingUser user= userMapper.selectOne(queryWrapper);
+            LambdaQueryWrapper<user> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.eq(user::getPhone, userInfo.get("phone"))
+                    .eq(user::getPassword, userInfo.get("password"));
+            user user= userMapper.selectOne(queryWrapper);
             if (user == null) {
                 return R.error("用户不存在");
             }

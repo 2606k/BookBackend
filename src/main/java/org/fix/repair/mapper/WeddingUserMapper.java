@@ -1,7 +1,7 @@
 package org.fix.repair.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import org.fix.repair.entity.WeddingUser;
+import org.fix.repair.entity.user;
 
 import java.util.Map;
 
@@ -12,7 +12,7 @@ import java.util.Map;
 * @createDate 2025-07-30 14:02:18
 * @Entity com.hl.happy.entity.WeddingUser
 */
-public interface WeddingUserMapper extends BaseMapper<WeddingUser> {
+public interface WeddingUserMapper extends BaseMapper<user> {
 
     void findByPhoneAndPassword(Map<String, Object> userInfo);
 }
