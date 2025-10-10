@@ -101,30 +101,23 @@ public class CategoriesController {
                                                @RequestParam(defaultValue = "10") Integer size,
                                                @RequestParam(required = false) String name) {
         try {
-            // 如果没有传分页参数，返回全部数据（兼容原有接口）
-            if (page == 1 && size == 10 && name == null) {
-                List<categories> list = categoriesService.list();
-                log.info("获取分类列表成功，共 {} 个分类", list.size());
-                return R.ok((Map<String, Object>) list);
-            }
-            
             // 创建分页对象
             Page<categories> pageObj = new Page<>(page, size);
-            
+
             // 构建查询条件
             LambdaQueryWrapper<categories> queryWrapper = new LambdaQueryWrapper<>();
-            
+
             // 名称模糊查询
             if (name != null && !name.trim().isEmpty()) {
                 queryWrapper.like(categories::getName, name.trim());
             }
-            
+
             // 按创建时间倒序
             queryWrapper.orderByDesc(categories::getCreatedat);
-            
+
             // 执行分页查询
             Page<categories> result = categoriesService.page(pageObj, queryWrapper);
-            
+
             // 构建返回结果
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("records", result.getRecords());
@@ -132,7 +125,7 @@ public class CategoriesController {
             responseData.put("pages", result.getPages());
             responseData.put("current", result.getCurrent());
             responseData.put("size", result.getSize());
-            
+
             log.info("获取分类列表成功，页码: {}, 每页: {}, 总数: {}", page, size, result.getTotal());
             return R.ok(responseData);
         } catch (Exception e) {
