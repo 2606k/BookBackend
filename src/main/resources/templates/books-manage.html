@@ -510,7 +510,7 @@
                                    value="${book.id}" onchange="updateSelectedBooks()">
                         </td>
                         <td>
-                            <img src="${book.coverUrl}" class="book-image" alt="封面">
+                            <img src="${book.imageurl}" class="book-image" alt="封面">
                         </td>
                         <td>
                             <div class="fw-bold">${book.bookName}</div>
@@ -604,21 +604,49 @@
         }
 
         function editBook(bookId) {
-            $('#bookModalTitle').text('编辑书籍');
-            $('#bookId').val(bookId);
-            
-            // 这里应该加载书籍详情数据
-            // 模拟数据填充
-            $('#bookName').val('Java编程思想');
-            $('#author').val('Bruce Eckel');
-            $('#price').val('89.00');
-            $('#stock').val('50');
-            $('#description').val('Java编程经典教材');
-            $('#publisher').val('机械工业出版社');
-            $('#publishDate').val('2024-01-01');
-            
-            $('#bookModal').modal('show');
+    // 发送请求获取书籍详情
+    $.ajax({
+        url: '/api/books/' + bookId,
+        type: 'GET',
+        success: function(response) {
+            if (response.code === 200) {
+                const book = response.data;
+
+                // 设置模态框标题
+                $('#bookModalTitle').text('编辑书籍');
+
+                // 填充表单数据
+                $('#bookId').val(book.id);
+                $('#bookName').val(book.bookName);
+                $('#author').val(book.author || '');
+                $('#categoryId').val(book.categoryId || '');
+                $('#price').val((book.price / 100).toFixed(2)); // 从分转换为元
+                $('#stock').val(book.stock);
+                $('#description').val(book.description || '');
+                $('#publisher').val(book.publisher || '');
+                $('#publishDate').val(book.publishDate || '');
+
+                // 设置封面图片
+                if (book.imageurl) {
+                    $('#bookCoverPreview').attr('src', book.imageurl);
+                    $('#bookImageUrl').val(book.imageurl);
+                } else {
+                    $('#bookCoverPreview').attr('src', 'https://via.placeholder.com/150x200?text=封面');
+                    $('#bookImageUrl').val('');
+                }
+
+                // 显示模态框
+                $('#bookModal').modal('show');
+            } else {
+                showAlert('获取书籍信息失败: ' + response.msg, 'danger');
+            }
+        },
+        error: function() {
+            showAlert('网络错误，请稍后重试', 'danger');
         }
+    });
+}
+
 
         function saveBook() {
             const bookData = {
@@ -694,10 +722,26 @@
             if (adjustment !== null && !isNaN(adjustment)) {
                 const newStock = currentStock + parseInt(adjustment);
                 if (newStock >= 0) {
-                    // 这里应该调用更新库存API
-                    console.log(`调整书籍 ${bookId} 库存: ${currentStock} -> ${newStock}`);
-                    showAlert('库存调整成功', 'success');
-                    loadBooks(currentPage);
+                    // 调用更新库存API
+                    $.ajax({
+                        url: '/api/books/adjustStock',
+                        type: 'POST',
+                        data: {
+                            bookId: bookId,
+                            adjustment: parseInt(adjustment)
+                        },
+                        success: function(response) {
+                            if (response.code === 200) {
+                                showAlert('库存调整成功', 'success');
+                                loadBooks(currentPage);
+                            } else {
+                                showAlert('库存调整失败：' + response.msg, 'danger');
+                            }
+                        },
+                        error: function() {
+                            showAlert('网络错误，请稍后重试', 'danger');
+                        }
+                    });
                 } else {
                     showAlert('库存不能为负数', 'warning');
                 }
@@ -705,12 +749,22 @@
         }
 
         function deleteBook(bookId) {
-            if (confirm('确定要删除这本书籍吗？此操作不可恢复。')) {
-                // 这里应该调用删除API
-                console.log('删除书籍:', bookId);
-                showAlert('书籍删除成功', 'success');
-                loadBooks(currentPage);
-            }
+            // 调用删除API
+            $.ajax({
+                url: '/api/books/delete/' + bookId,
+                type: 'POST',
+                success: function(response) {
+                    if (response.code === 200) {
+                        showAlert('书籍删除成功', 'success');
+                        loadBooks(currentPage);
+                    } else {
+                        showAlert('书籍删除失败：' + response.msg, 'danger');
+                    }
+                },
+                error: function() {
+                    showAlert('网络错误，请稍后重试', 'danger');
+                }
+            });
         }
 
         function toggleSelectAll() {

@@ -162,21 +162,21 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3">
-                        <div class="card text-white bg-success">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between">
-                                    <div>
-                                        <h4 id="categoriesWithBooks">0</h4>
-                                        <p class="card-text">有书籍分类</p>
-                                    </div>
-                                    <div class="align-self-center">
-                                        <i class="bi bi-book" style="font-size: 2rem;"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+<!--                    <div class="col-md-3">-->
+<!--                        <div class="card text-white bg-success">-->
+<!--                            <div class="card-body">-->
+<!--                                <div class="d-flex justify-content-between">-->
+<!--                                    <div>-->
+<!--                                        <h4 id="categoriesWithBooks">0</h4>-->
+<!--                                        <p class="card-text">有书籍分类</p>-->
+<!--                                    </div>-->
+<!--                                    <div class="align-self-center">-->
+<!--                                        <i class="bi bi-book" style="font-size: 2rem;"></i>-->
+<!--                                    </div>-->
+<!--                                </div>-->
+<!--                            </div>-->
+<!--                        </div>-->
+<!--                    </div>-->
                 </div>
 
                 <!-- 分类列表 -->
@@ -282,8 +282,12 @@
         function loadCategories() {
             $.get('/category/list', function(response) {
                 if (response.code === 200) {
-                    displayCategories(response.data);
-                    updateStatistics(response.data);
+                    const data = response.data;
+                    if(data.records){
+                        displayCategories(data.records);
+                        updateStatistics(data.records);
+                    }
+
                 } else {
                     showAlert('加载分类失败: ' + response.msg, 'danger');
                 }

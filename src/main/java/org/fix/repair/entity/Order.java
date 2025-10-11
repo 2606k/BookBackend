@@ -9,7 +9,7 @@ import lombok.Data;
 import java.util.Date;
 import java.util.List;
 
-@TableName(value ="Order")
+@TableName(value ="orders")
 @Data
 public class Order {
 

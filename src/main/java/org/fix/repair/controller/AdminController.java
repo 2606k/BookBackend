@@ -1,9 +1,14 @@
 package org.fix.repair.controller;
 
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import org.fix.repair.common.R;
 import org.fix.repair.entity.user;
 import org.fix.repair.entity.books;
@@ -88,6 +93,40 @@ public class AdminController {
             log.error("管理员登录失败", e);
             return R.error("登录失败: " + e.getMessage());
         }
+    }
+
+    @PostMapping("/getOpenId")
+    @ResponseBody
+    public R<String> getOpenId(@RequestBody String json) throws IOException {
+        // 解析JSON字符串获取code
+        JSONObject jsonObject = JSONObject.parseObject(json);
+        String code = jsonObject.getString("code");
+        //AppID
+        String appId = "wx53080d824201ddf5";
+        //密钥
+        String secret= "0bc64f03b4c21f3fb74a2824939fb02a";
+        // 直接使用传入的字符串作为code
+        if (StringUtils.isEmpty(code)) {
+            return R.error("code不能为空");
+        }
+        String url = "https://api.weixin.qq.com/sns/jscode2session?appid="+appId
+                +"&secret="+secret+"&js_code="+code+"&grant_type=authorization_code";
+
+        //客户端
+        OkHttpClient client = new OkHttpClient();
+        //用url发起请求
+        Request request = new Request.Builder().url(url).build();
+        //拿到响应
+        Response response = client.newCall(request).execute();
+        //如果响应成功，打印返回值
+        if (response.isSuccessful()){
+            String body = response.body().string();
+            System.out.println(body);
+            JSONObject jsonObject2 = JSONObject.parseObject(body);
+            String openid = jsonObject2.getString("openid");
+            return R.ok(openid);
+        }
+        return R.error("请求失败");
     }
 
     /**

@@ -45,5 +45,5 @@ gp:
     endpointUrl: http://124.222.172.221:9000
     accessKey: 2AyrlhH3xJa8McdX4Gqh
     secreKey: BqXqVYiHt3std78ZJL76wA36cjduf3JiyHbuk2Pc
-    bucketName: marry
+    bucketName: bookstore
 
