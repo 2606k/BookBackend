@@ -33,7 +33,7 @@ mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
 wxpay:
   enabled: false  # 暂时禁用微信支付配置
-  app-id: wx1234567890abcdef
+  app-id: wx53080d824201ddf5
   mch-id: 1234567890
   private-key-path: src/main/resources/apiclient_key.pem
   merchant-serial-number: 5C5B1A7E0E1D2C3B4A59687786959483

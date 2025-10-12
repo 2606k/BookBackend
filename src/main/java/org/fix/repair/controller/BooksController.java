@@ -412,13 +412,17 @@ public class BooksController {
                 return R.error("搜索关键词不能为空");
             }
 
-            // TODO: 实现书籍搜索逻辑
-            List<books> allBooks = booksService.list();
-            List<books> searchResults = allBooks.stream()
-                    .filter(book -> book.getBookName().contains(keyword.trim()))
-                    .toList();
-            
-            log.info("搜索书籍: {}，结果数量: {}", keyword, searchResults.size());
+            String searchKeyword = keyword.trim();
+
+            // 使用 MyBatis-Plus 的查询条件
+            LambdaQueryWrapper<books> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.like(books::getBookName, searchKeyword)
+                    .or()
+                    .like(books::getAuthor, searchKeyword);
+
+            List<books> searchResults = booksService.list(queryWrapper);
+
+            log.info("搜索书籍: {}，结果数量: {}", searchKeyword, searchResults.size());
             return R.ok(searchResults);
         } catch (Exception e) {
             log.error("搜索书籍失败", e);

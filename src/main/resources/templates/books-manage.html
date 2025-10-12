@@ -362,6 +362,16 @@
                     uploadBookImage(file);
                 }
             });
+            
+            // 全局图片加载失败处理
+            $(document).on('error', 'img', function() {
+                const $img = $(this);
+                if ($img.hasClass('book-image')) {
+                    $img.replaceWith('<div class="book-image bg-light d-flex align-items-center justify-content-center"><i class="bi bi-image text-muted"></i></div>');
+                } else if ($img.hasClass('preview-image')) {
+                    $img.attr('src', 'https://via.placeholder.com/200x200?text=图片加载失败');
+                }
+            });
         });
 
         function loadCategories() {
@@ -510,7 +520,12 @@
                                    value="${book.id}" onchange="updateSelectedBooks()">
                         </td>
                         <td>
-                            <img src="${book.imageurl}" class="book-image" alt="封面">
+                            ${book.imageurl ? 
+                                `<img src="${book.imageurl}" class="book-image" alt="封面">` :
+                                `<div class="book-image bg-light d-flex align-items-center justify-content-center">
+                                    <i class="bi bi-image text-muted"></i>
+                                </div>`
+                            }
                         </td>
                         <td>
                             <div class="fw-bold">${book.bookName}</div>
@@ -634,6 +649,11 @@
                     $('#bookCoverPreview').attr('src', 'https://via.placeholder.com/150x200?text=封面');
                     $('#bookImageUrl').val('');
                 }
+                
+                // 添加图片加载失败处理
+                $('#bookCoverPreview').off('error').on('error', function() {
+                    $(this).attr('src', 'https://via.placeholder.com/150x200?text=封面');
+                });
 
                 // 显示模态框
                 $('#bookModal').modal('show');

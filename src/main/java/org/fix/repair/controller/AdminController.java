@@ -10,6 +10,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import org.fix.repair.common.R;
+import org.fix.repair.common.MinioUtil;
 import org.fix.repair.entity.user;
 import org.fix.repair.entity.books;
 import org.fix.repair.mapper.WeddingUserMapper;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -29,6 +31,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 /**
  * 管理端页面控制器
@@ -43,6 +48,7 @@ public class AdminController {
     private final WeddingUserMapper userMapper;
     private final BooksService booksService;
     private final CategoriesService categoriesService;
+    private final MinioUtil minioUtil;
 
     /**
      * 管理员注册
@@ -58,15 +64,25 @@ public class AdminController {
             if (existingUser != null) {
                 return R.error("该手机号已被注册");
             }
-
-            user user = new user();
-            user.setUsername((String) userInfo.get("userName"));
-            user.setPhone((String) userInfo.get("phone"));
-            user.setPassword((String) userInfo.get("password"));
-            user.setCreatedat(new java.util.Date());
-            userMapper.insert(user);
-            log.info("管理员注册成功: {}", user.getPhone());
-            return R.ok(user.getId());
+            user userlocal = new user();
+            Object openid = userInfo.get("openid");
+            LambdaQueryWrapper<user> queryWrapper2 = new LambdaQueryWrapper<>();
+            queryWrapper2.eq(user::getOpenid, openid);
+            user user1= userMapper.selectOne(queryWrapper);
+            if (user1 != null){
+                userlocal.setUsername((String) userInfo.get("userName"));
+                userlocal.setAvatarUrl((String) userInfo.get("avatarUrl"));
+                userMapper.update(userlocal, queryWrapper);
+                return R.ok(user1.getId());
+            }
+            userlocal.setUsername((String) userInfo.get("userName"));
+            userlocal.setAvatarUrl((String) userInfo.get("avatarUrl"));
+            userlocal.setPhone((String) userInfo.get("phone"));
+            userlocal.setOpenid((String) userInfo.get("openid"));
+            userlocal.setPassword((String) userInfo.get("password"));
+            userlocal.setCreatedat(new java.util.Date());
+            userMapper.insert(userlocal);
+            return R.ok(userlocal.getId());
         } catch (Exception e) {
             log.error("管理员注册失败", e);
             return R.error("注册失败: " + e.getMessage());
@@ -146,34 +162,95 @@ public class AdminController {
                 return R.error("文件名不能为空");
             }
 
-            String fileExtension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
-            if (!fileExtension.matches("\\.(jpg|jpeg|png|gif|bmp)$")) {
-                return R.error("只支持图片文件格式");
+            // 使用MinioUtil验证文件类型
+            if (!minioUtil.isImageFile(originalFilename)) {
+                return R.error("只支持图片文件格式 (jpg, jpeg, png, gif, bmp, webp)");
             }
 
-            // 生成唯一文件名
-            String fileName = UUID.randomUUID().toString() + fileExtension;
-            
-            // 创建上传目录
-            String uploadDir = "uploads/images/";
-            Path uploadPath = Paths.get(uploadDir);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-
-            // 保存文件
-            Path filePath = uploadPath.resolve(fileName);
-            Files.copy(file.getInputStream(), filePath);
+            // 上传文件到MinIO bucket根目录
+            String fileUrl = minioUtil.uploadFileToRoot(file);
 
             Map<String, String> result = new HashMap<>();
-            result.put("url", "/" + uploadDir + fileName);
-            result.put("filename", fileName);
+            result.put("url", fileUrl);
+            result.put("filename", originalFilename);
             
-            log.info("文件上传成功: {}", fileName);
+            log.info("文件上传成功: {} -> {}", originalFilename, fileUrl);
             return R.ok(result);
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("文件上传失败", e);
             return R.error("文件上传失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 文件下载接口
+     */
+    @GetMapping("/api/download")
+    @ResponseBody
+    public ResponseEntity<byte[]> downloadFile(@RequestParam("url") String fileUrl) {
+        try {
+            // 从URL中提取对象名
+            String objectName = minioUtil.extractObjectName(fileUrl);
+            if (objectName == null) {
+                return ResponseEntity.badRequest().build();
+            }
+
+            // 检查文件是否存在
+            if (!minioUtil.fileExists(objectName)) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // 获取文件信息
+            var fileInfo = minioUtil.getFileInfo(objectName);
+            
+            // 下载文件
+            InputStream inputStream = minioUtil.downloadFile(objectName);
+            byte[] fileBytes = inputStream.readAllBytes();
+            inputStream.close();
+
+            // 设置响应头
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType(fileInfo.contentType()));
+            headers.setContentDispositionFormData("attachment", fileInfo.object());
+            headers.setContentLength(fileBytes.length);
+
+            log.info("文件下载成功: {}", objectName);
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(fileBytes);
+
+        } catch (Exception e) {
+            log.error("文件下载失败", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 文件删除接口
+     */
+    @DeleteMapping("/api/file")
+    @ResponseBody
+    public R<String> deleteFile(@RequestParam("url") String fileUrl) {
+        try {
+            // 从URL中提取对象名
+            String objectName = minioUtil.extractObjectName(fileUrl);
+            if (objectName == null) {
+                return R.error("无效的文件URL");
+            }
+
+            // 检查文件是否存在
+            if (!minioUtil.fileExists(objectName)) {
+                return R.error("文件不存在");
+            }
+
+            // 删除文件
+            minioUtil.deleteFile(objectName);
+
+            log.info("文件删除成功: {}", objectName);
+            return R.ok("文件删除成功");
+        } catch (Exception e) {
+            log.error("文件删除失败", e);
+            return R.error("文件删除失败: " + e.getMessage());
         }
     }
 

@@ -277,6 +277,17 @@
         $(document).ready(function() {
             loadCategories();
             setupFileUpload();
+            
+            // 全局图片加载失败处理
+            $(document).on('error', 'img', function() {
+                const $img = $(this);
+                if ($img.hasClass('category-image')) {
+                    $img.hide();
+                    $img.next('.category-image').show();
+                } else if ($img.hasClass('preview-image')) {
+                    $img.attr('src', 'https://via.placeholder.com/200x200?text=图片加载失败');
+                }
+            });
         });
 
         function loadCategories() {
