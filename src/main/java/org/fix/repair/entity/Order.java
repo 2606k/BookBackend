@@ -78,6 +78,13 @@ public class Order {
     private String status;
 
     /**
+     * 订单取货类型
+     */
+    @TableField(value = "delivery_type")
+    private String deliveryType;
+
+
+    /**
      * 购买书籍
      */
     @TableField(value = "book_name")

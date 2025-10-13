@@ -142,7 +142,13 @@ public class BooksController {
                 return R.error("分类不能为空");
             }
             if (book.getPrice() == null || book.getPrice() <= 0) {
-                return R.error("价格必须大于0");
+                return R.error("原价必须大于0");
+            }
+            if (book.getDiscountPrice() != null && book.getDiscountPrice() <= 0) {
+                return R.error("折扣价必须大于0");
+            }
+            if (book.getDiscountPrice() != null && book.getDiscountPrice() >= book.getPrice()) {
+                return R.error("折扣价必须低于原价");
             }
             if (book.getStock() == null || book.getStock() < 0) {
                 return R.error("库存不能为负数");
@@ -159,8 +165,12 @@ public class BooksController {
 
             boolean success = booksService.save(book);
             if (success) {
-                log.info("添加书籍成功: {}，作者: {}，价格: {}分", 
-                        book.getBookName(), book.getAuthor(), book.getPrice());
+                String priceInfo = book.getDiscountPrice() != null ? 
+                    String.format("原价: %d分, 折扣价: %d分", book.getPrice(), book.getDiscountPrice()) : 
+                    String.format("价格: %d分", book.getPrice());
+                
+                log.info("添加书籍成功: {}，作者: {}，{}", 
+                        book.getBookName(), book.getAuthor(), priceInfo);
                 return R.ok("添加书籍成功");
             } else {
                 return R.error("添加书籍失败");
@@ -194,7 +204,13 @@ public class BooksController {
                 return R.error("分类不能为空");
             }
             if (book.getPrice() == null || book.getPrice() <= 0) {
-                return R.error("价格必须大于0");
+                return R.error("原价必须大于0");
+            }
+            if (book.getDiscountPrice() != null && book.getDiscountPrice() <= 0) {
+                return R.error("折扣价必须大于0");
+            }
+            if (book.getDiscountPrice() != null && book.getDiscountPrice() >= book.getPrice()) {
+                return R.error("折扣价必须低于原价");
             }
             if (book.getStock() == null || book.getStock() < 0) {
                 return R.error("库存不能为负数");
@@ -211,8 +227,12 @@ public class BooksController {
 
             boolean success = booksService.updateById(book);
             if (success) {
-                log.info("更新书籍成功: {}，作者: {}，价格: {}分", 
-                        book.getBookName(), book.getAuthor(), book.getPrice());
+                String priceInfo = book.getDiscountPrice() != null ? 
+                    String.format("原价: %d分, 折扣价: %d分", book.getPrice(), book.getDiscountPrice()) : 
+                    String.format("价格: %d分", book.getPrice());
+                
+                log.info("更新书籍成功: {}，作者: {}，{}", 
+                        book.getBookName(), book.getAuthor(), priceInfo);
                 return R.ok("更新书籍成功");
             } else {
                 return R.error("更新书籍失败");
@@ -274,10 +294,21 @@ public class BooksController {
      * 更新书籍价格
      */
     @PostMapping("/updatePrice")
-    public R<String> updateBookPrice(@RequestParam Long bookId, @RequestParam Integer newPrice) {
+    public R<String> updateBookPrice(@RequestParam Long bookId, 
+                                    @RequestParam Integer newPrice, 
+                                    @RequestParam(required = false) Integer newDiscountPrice) {
         try {
             if (newPrice <= 0) {
-                return R.error("价格必须大于0");
+                return R.error("原价必须大于0");
+            }
+            
+            if (newDiscountPrice != null) {
+                if (newDiscountPrice <= 0) {
+                    return R.error("折扣价必须大于0");
+                }
+                if (newDiscountPrice >= newPrice) {
+                    return R.error("折扣价必须低于原价");
+                }
             }
 
             books book = booksService.getBook(bookId);
@@ -286,12 +317,29 @@ public class BooksController {
             }
 
             Integer oldPrice = book.getPrice();
+            Integer oldDiscountPrice = book.getDiscountPrice();
+            
             book.setPrice(newPrice);
+            book.setDiscountPrice(newDiscountPrice); // 可以为null
             
             boolean success = booksService.updateById(book);
             if (success) {
-                log.info("更新书籍价格成功: {} 从 {} 更新为 {}", 
-                        book.getBookName(), oldPrice / 100.0, newPrice / 100.0);
+                StringBuilder logMessage = new StringBuilder()
+                    .append("更新书籍价格成功: ")
+                    .append(book.getBookName())
+                    .append(" 原价从 ")
+                    .append(oldPrice / 100.0)
+                    .append(" 更新为 ")
+                    .append(newPrice / 100.0);
+                
+                if (oldDiscountPrice != null || newDiscountPrice != null) {
+                    logMessage.append(", 折扣价从 ")
+                        .append(oldDiscountPrice != null ? oldDiscountPrice / 100.0 : "无")
+                        .append(" 更新为 ")
+                        .append(newDiscountPrice != null ? newDiscountPrice / 100.0 : "无");
+                }
+                
+                log.info(logMessage.toString());
                 return R.ok("价格更新成功");
             } else {
                 return R.error("价格更新失败");
@@ -312,6 +360,7 @@ public class BooksController {
             List<Long> bookIds = (List<Long>) params.get("bookIds");
             String adjustType = (String) params.get("adjustType");
             Double adjustValue = Double.valueOf(params.get("adjustValue").toString());
+            Boolean adjustDiscountPrice = Boolean.valueOf(params.getOrDefault("adjustDiscountPrice", false).toString());
 
             if (bookIds == null || bookIds.isEmpty()) {
                 return R.error("请选择要调价的书籍");
@@ -321,6 +370,7 @@ public class BooksController {
             for (Long bookId : bookIds) {
                 books book = booksService.getBook(bookId);
                 if (book != null) {
+                    // 调整原价
                     Integer oldPrice = book.getPrice();
                     Integer newPrice;
                     
@@ -332,11 +382,36 @@ public class BooksController {
                         newPrice = oldPrice + (int) Math.round(adjustValue * 100);
                     }
                     
-                    if (newPrice > 0) {
-                        book.setPrice(newPrice);
-                        if (booksService.updateById(book)) {
-                            updatedCount++;
+                    if (newPrice <= 0) {
+                        continue; // 跳过价格不合法的书籍
+                    }
+                    
+                    book.setPrice(newPrice);
+                    
+                    // 如果需要同时调整折扣价，且书籍有折扣价
+                    if (adjustDiscountPrice && book.getDiscountPrice() != null) {
+                        Integer oldDiscountPrice = book.getDiscountPrice();
+                        Integer newDiscountPrice;
+                        
+                        if ("percentage".equals(adjustType)) {
+                            // 按百分比调整
+                            newDiscountPrice = (int) Math.round(oldDiscountPrice * (1 + adjustValue / 100));
+                        } else {
+                            // 按固定金额调整（转换为分）
+                            newDiscountPrice = oldDiscountPrice + (int) Math.round(adjustValue * 100);
                         }
+                        
+                        // 确保折扣价合法（大于0且小于原价）
+                        if (newDiscountPrice > 0 && newDiscountPrice < newPrice) {
+                            book.setDiscountPrice(newDiscountPrice);
+                        } else {
+                            // 如果调整后折扣价不合法，则清空折扣价
+                            book.setDiscountPrice(null);
+                        }
+                    }
+                    
+                    if (booksService.updateById(book)) {
+                        updatedCount++;
                     }
                 }
             }

@@ -31,7 +31,8 @@ BooksController 提供书籍管理的相关接口，包括书籍的增删改查�
   "publisher": "机械工业出版社", // 出版社
   "publishDate": "2020-01-01", // 出版日期
   "imageurl": "http://...",   // 图书图片URL
-  "price": 9900,              // 图书价格（分）
+  "price": 9900,              // 图书原价（分）
+  "discountPrice": 7900,      // 图书折扣价（分，可为null）
   "description": "经典Java教程", // 图书描述
   "stock": 100,               // 图书库存
   "createdat": "2023-01-01T00:00:00" // 创建时间
@@ -78,6 +79,7 @@ GET /api/books/list?page=1&size=10&bookName=Java&minPrice=50&maxPrice=200&stockS
         "publishDate": "2020-01-01",
         "imageurl": "http://example.com/book1.jpg",
         "price": 9900,
+        "discountPrice": 7900,
         "description": "经典Java教程",
         "stock": 100,
         "createdat": "2023-01-01T00:00:00"
@@ -121,6 +123,7 @@ GET /api/books/1
     "publishDate": "2020-01-01",
     "imageurl": "http://example.com/book1.jpg",
     "price": 9900,
+    "discountPrice": 7900,
     "description": "经典Java教程",
     "stock": 100,
     "createdat": "2023-01-01T00:00:00"
@@ -143,7 +146,8 @@ GET /api/books/1
 | publisher | String | 否 | 出版社 |
 | publishDate | String | 否 | 出版日期 |
 | imageurl | String | 否 | 图片URL |
-| price | Integer | 是 | 价格（分） |
+| price | Integer | 是 | 原价（分） |
+| discountPrice | Integer | 否 | 折扣价（分，必须小于原价，可为null） |
 | description | String | 否 | 描述 |
 | stock | Integer | 是 | 库存 |
 
@@ -157,6 +161,7 @@ GET /api/books/1
   "publishDate": "2023-01-01",
   "imageurl": "http://example.com/spring-boot.jpg",
   "price": 8900,
+  "discountPrice": 7500,
   "description": "Spring Boot开发指南",
   "stock": 50
 }
@@ -187,7 +192,8 @@ GET /api/books/1
 | publisher | String | 否 | 出版社 |
 | publishDate | String | 否 | 出版日期 |
 | imageurl | String | 否 | 图片URL |
-| price | Integer | 是 | 价格（分） |
+| price | Integer | 是 | 原价（分） |
+| discountPrice | Integer | 否 | 折扣价（分，必须小于原价，可为null） |
 | description | String | 否 | 描述 |
 | stock | Integer | 是 | 库存 |
 
@@ -202,6 +208,7 @@ GET /api/books/1
   "publishDate": "2020-01-01",
   "imageurl": "http://example.com/book1.jpg",
   "price": 10900,
+  "discountPrice": 8900,
   "description": "经典Java教程",
   "stock": 80
 }
@@ -276,11 +283,12 @@ POST /api/books/delete/1
 | 参数名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
 | bookId | Long | 是 | 书籍ID |
-| newPrice | Integer | 是 | 新价格（分） |
+| newPrice | Integer | 是 | 新原价（分） |
+| newDiscountPrice | Integer | 否 | 新折扣价（分，必须小于原价，可为null） |
 
 **请求示例**:
 ```
-POST /api/books/updatePrice?bookId=1&newPrice=9900
+POST /api/books/updatePrice?bookId=1&newPrice=9900&newDiscountPrice=8500
 ```
 
 **响应示例**:
@@ -304,13 +312,15 @@ POST /api/books/updatePrice?bookId=1&newPrice=9900
 | bookIds | List<Long> | 是 | 书籍ID列表 |
 | adjustType | String | 是 | 调整类型：percentage-按百分比，fixed-按固定金额 |
 | adjustValue | Double | 是 | 调整值 |
+| adjustDiscountPrice | Boolean | 否 | 是否同时调整折扣价，默认false |
 
 **请求示例**:
 ```json
 {
   "bookIds": [1, 2, 3],
   "adjustType": "percentage",
-  "adjustValue": 10.0
+  "adjustValue": 10.0,
+  "adjustDiscountPrice": true
 }
 ```
 
@@ -482,21 +492,29 @@ GET /api/books/statistics
 ## 注意事项
 
 1. **价格单位**: 后端存储价格以分为单位，前端显示时需要除以100转换为元
-2. **时间格式**: 时间字段使用ISO 8601格式
-3. **分页查询**: 分页查询默认按创建时间倒序排列
-4. **库存状态**: 
+2. **折扣价规则**: 
+   - 折扣价必须低于原价
+   - 折扣价可以为null，表示没有折扣
+   - 当有折扣价时，前端应显示折扣价作为主要价格，原价作为划线价
+3. **时间格式**: 时间字段使用ISO 8601格式
+4. **分页查询**: 分页查询默认按创建时间倒序排列
+5. **库存状态**: 
    - `inStock`: 库存大于0
    - `lowStock`: 库存小于等于10且大于0
    - `outOfStock`: 库存等于0
-5. **批量操作**: 批量删除和批量调价操作建议限制单次操作数量，避免性能问题
-6. **参数校验**: 所有必填参数都会进行校验，缺失或格式错误会返回相应错误信息
+6. **批量操作**: 批量删除和批量调价操作建议限制单次操作数量，避免性能问题
+7. **参数校验**: 所有必填参数都会进行校验，缺失或格式错误会返回相应错误信息
 
 ## 前端集成建议
 
-1. **价格显示**: 前端显示价格时使用 `price / 100` 转换为元
+1. **价格显示**: 
+   - 前端显示价格时使用 `price / 100` 转换为元
+   - 当存在折扣价时，显示折扣价作为主要价格，原价作为划线价格
+   - 当折扣价为null时，只显示原价
 2. **分页组件**: 建议使用分页组件处理书籍列表的分页显示
 3. **搜索功能**: 可以实现实时搜索，使用防抖优化用户体验
 4. **库存预警**: 可以定期调用库存预警接口，提醒管理员补货
 5. **批量操作**: 提供批量选择功能，支持批量删除和调价操作
 6. **图片处理**: 图片URL为空时显示默认图片
 7. **错误处理**: 统一处理接口返回的错误信息，给用户友好的提示
+8. **折扣价编辑**: 提供清除折扣价的选项，让用户可以方便地取消折扣

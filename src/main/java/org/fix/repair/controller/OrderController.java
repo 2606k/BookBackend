@@ -89,6 +89,7 @@ public class OrderController {
             String phone = (String) params.get("phone");
             String address = (String) params.get("address");
             String remark = (String) params.get("remark");
+            String deliveryType = (String) params.get("deliveryType");
             List<Map<String, Object>> bookItems = (List<Map<String, Object>>) params.get("bookItems");
 
             // 3. 校验书籍库存和存在性
@@ -98,7 +99,7 @@ public class OrderController {
             }
 
             // 4. 创建订单
-            Order order = createOrderEntity(openid, name, phone, address, remark);
+            Order order = createOrderEntity(openid, name, phone, address, remark, deliveryType);
             
             // 5. 计算订单金额和创建订单项
             R<Map<String, Object>> orderResult = calculateOrderAmount(order, bookItems);
@@ -575,13 +576,14 @@ public class OrderController {
     /**
      * 创建订单实体
      */
-    private Order createOrderEntity(String openid, String name, String phone, String address, String remark) {
+    private Order createOrderEntity(String openid, String name, String phone, String address, String remark,String deliveryType) {
         Order order = new Order();
         order.setOpenid(openid);
         order.setName(name);
         order.setPhone(phone);
         order.setAddress(address);
         order.setRemark(remark);
+        order.setDeliveryType(deliveryType);
         order.setOutTradeNo("order_" + UUID.randomUUID().toString().replace("-", ""));
         order.setStatus("待支付");
         order.setCreatedat(new Date());

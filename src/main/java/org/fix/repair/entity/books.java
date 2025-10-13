@@ -54,10 +54,16 @@ public class books {
     private String imageurl;
 
     /**
-     * 图书价格
+     * 图书原价
      */
     @TableField(value = "price")
     private Integer price;
+    
+    /**
+     * 图书折扣价（可为空）
+     */
+    @TableField(value = "discount_price")
+    private Integer discountPrice;
 
     /**
      * 图书描述

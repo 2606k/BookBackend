@@ -235,20 +235,29 @@
                                         <option value="">请选择分类</option>
                                     </select>
                                 </div>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label class="form-label">价格(元) <span class="text-danger">*</span></label>
-                                            <input type="number" class="form-control" id="price" step="0.01" min="0" required>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">原价(元) <span class="text-danger">*</span></label>
+                                                <input type="number" class="form-control" id="price" step="0.01" min="0" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">折扣价(元)</label>
+                                                <input type="number" class="form-control" id="discountPrice" step="0.01" min="0" placeholder="可选，留空表示无折扣">
+                                                <div class="form-text">必须低于原价</div>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label class="form-label">库存数量 <span class="text-danger">*</span></label>
-                                            <input type="number" class="form-control" id="stock" min="0" required>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">库存数量 <span class="text-danger">*</span></label>
+                                                <input type="number" class="form-control" id="stock" min="0" required>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
@@ -316,6 +325,11 @@
                             <span class="input-group-text" id="adjustUnit">%</span>
                         </div>
                         <div class="form-text">正数为涨价，负数为降价</div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="adjustDiscountPrice">
+                        <label class="form-check-label" for="adjustDiscountPrice">同时调整折扣价</label>
+                        <div class="form-text">选中后，将按相同比例或金额调整折扣价</div>
                     </div>
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle"></i>
@@ -534,8 +548,14 @@
                         </td>
                         <td>
                             <div class="d-flex align-items-center">
-                                <span class="fw-bold text-primary me-2">¥${(book.price / 100).toFixed(2)}</span>
-                                <button class="btn btn-outline-primary btn-sm" onclick="quickEditPrice(${book.id}, ${book.price})">
+                                ${book.discountPrice ? 
+                                    `<div>
+                                        <span class="fw-bold text-primary me-2">¥${(book.discountPrice / 100).toFixed(2)}</span>
+                                        <span class="text-muted text-decoration-line-through small">¥${(book.price / 100).toFixed(2)}</span>
+                                    </div>` : 
+                                    `<span class="fw-bold text-primary me-2">¥${(book.price / 100).toFixed(2)}</span>`
+                                }
+                                <button class="btn btn-outline-primary btn-sm ms-2" onclick="quickEditPrice(${book.id}, ${book.price}, ${book.discountPrice || 'null'})">
                                     <i class="bi bi-pencil"></i>
                                 </button>
                             </div>
@@ -636,6 +656,14 @@
                 $('#author').val(book.author || '');
                 $('#categoryId').val(book.categoryId || '');
                 $('#price').val((book.price / 100).toFixed(2)); // 从分转换为元
+                
+                // 设置折扣价（如果有）
+                if (book.discountPrice !== null && book.discountPrice !== undefined) {
+                    $('#discountPrice').val((book.discountPrice / 100).toFixed(2)); // 从分转换为元
+                } else {
+                    $('#discountPrice').val('');
+                }
+                
                 $('#stock').val(book.stock);
                 $('#description').val(book.description || '');
                 $('#publisher').val(book.publisher || '');
@@ -669,12 +697,24 @@
 
 
         function saveBook() {
+            const originalPrice = parseFloat($('#price').val());
+            const discountPriceInput = $('#discountPrice').val();
+            const discountPrice = discountPriceInput && !isNaN(discountPriceInput) && parseFloat(discountPriceInput) > 0 ? 
+                parseFloat(discountPriceInput) : null;
+            
+            // 验证折扣价是否低于原价
+            if (discountPrice !== null && discountPrice >= originalPrice) {
+                showAlert('折扣价必须低于原价', 'warning');
+                return;
+            }
+            
             const bookData = {
                 id: $('#bookId').val() || null,
                 bookName: $('#bookName').val(),
                 categoryId: parseInt($('#categoryId').val()),
                 author: $('#author').val(),
-                price: Math.round(parseFloat($('#price').val()) * 100), // 转换为分
+                price: Math.round(originalPrice * 100), // 转换为分
+                discountPrice: discountPrice !== null ? Math.round(discountPrice * 100) : null, // 转换为分
                 stock: parseInt($('#stock').val()),
                 description: $('#description').val(),
                 publisher: $('#publisher').val(),
@@ -683,7 +723,7 @@
             };
             
             if (!bookData.bookName || !bookData.categoryId || !bookData.price || bookData.stock < 0) {
-                showAlert('请填写必填字段（书名、分类、价格、库存）', 'warning');
+                showAlert('请填写必填字段（书名、分类、原价、库存）', 'warning');
                 return;
             }
             
@@ -710,19 +750,80 @@
             });
         }
 
-        function quickEditPrice(bookId, currentPrice) {
-            const newPrice = prompt('请输入新价格（元）:', (currentPrice / 100).toFixed(2));
-            if (newPrice !== null && !isNaN(newPrice) && parseFloat(newPrice) > 0) {
-                const newPriceInCents = Math.round(parseFloat(newPrice) * 100);
+        function quickEditPrice(bookId, currentPrice, currentDiscountPrice) {
+            // 创建一个简单的对话框来编辑价格
+            const modalHtml = `
+                <div class="modal fade" id="quickPriceModal" tabindex="-1">
+                    <div class="modal-dialog modal-sm">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">调整价格</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">原价(元) <span class="text-danger">*</span></label>
+                                    <input type="number" class="form-control" id="quickEditOriginalPrice" step="0.01" min="0" value="${(currentPrice / 100).toFixed(2)}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">折扣价(元)</label>
+                                    <input type="number" class="form-control" id="quickEditDiscountPrice" step="0.01" min="0" value="${currentDiscountPrice ? (currentDiscountPrice / 100).toFixed(2) : ''}" placeholder="可选，留空表示无折扣">
+                                    <div class="form-text">必须低于原价</div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                <button type="button" class="btn btn-primary" id="saveQuickPrice">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 移除可能存在的旧模态框
+            $('#quickPriceModal').remove();
+            
+            // 添加新模态框到DOM
+            $('body').append(modalHtml);
+            
+            // 显示模态框
+            const quickPriceModal = new bootstrap.Modal(document.getElementById('quickPriceModal'));
+            quickPriceModal.show();
+            
+            // 绑定保存按钮事件
+            $('#saveQuickPrice').click(function() {
+                const newPrice = $('#quickEditOriginalPrice').val();
+                const newDiscountPrice = $('#quickEditDiscountPrice').val();
                 
+                // 验证输入
+                if (!newPrice || isNaN(newPrice) || parseFloat(newPrice) <= 0) {
+                    showAlert('请输入有效的原价', 'warning');
+                    return;
+                }
+                
+                // 如果有折扣价，验证折扣价
+                if (newDiscountPrice && (!isNaN(newDiscountPrice) && parseFloat(newDiscountPrice) > 0)) {
+                    if (parseFloat(newDiscountPrice) >= parseFloat(newPrice)) {
+                        showAlert('折扣价必须低于原价', 'warning');
+                        return;
+                    }
+                }
+                
+                const newPriceInCents = Math.round(parseFloat(newPrice) * 100);
+                const newDiscountPriceInCents = newDiscountPrice && !isNaN(newDiscountPrice) && parseFloat(newDiscountPrice) > 0 ? 
+                    Math.round(parseFloat(newDiscountPrice) * 100) : null;
+                
+                // 发送请求更新价格
                 $.ajax({
                     url: '/api/books/updatePrice',
                     type: 'POST',
                     data: {
                         bookId: bookId,
-                        newPrice: newPriceInCents
+                        newPrice: newPriceInCents,
+                        newDiscountPrice: newDiscountPriceInCents
                     },
                     success: function(response) {
+                        quickPriceModal.hide();
                         if (response.code === 200) {
                             showAlert('价格更新成功', 'success');
                             loadBooks(currentPage);
@@ -731,10 +832,11 @@
                         }
                     },
                     error: function() {
+                        quickPriceModal.hide();
                         showAlert('网络错误，请稍后重试', 'danger');
                     }
                 });
-            }
+            });
         }
 
         function adjustStock(bookId, currentStock) {
@@ -819,22 +921,38 @@
         function confirmBatchPrice() {
             const adjustType = $('#priceAdjustType').val();
             const adjustValue = parseFloat($('#priceAdjustValue').val());
+            const adjustDiscountPrice = $('#adjustDiscountPrice').is(':checked');
             
             if (isNaN(adjustValue)) {
                 showAlert('请输入有效的调整值', 'warning');
                 return;
             }
             
-            // 这里应该调用批量调价API
-            console.log('批量调价:', {
-                bookIds: Array.from(selectedBooks),
-                adjustType: adjustType,
-                adjustValue: adjustValue
+            // 调用批量调价API
+            $.ajax({
+                url: '/api/books/batchUpdatePrice',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    bookIds: Array.from(selectedBooks),
+                    adjustType: adjustType,
+                    adjustValue: adjustValue,
+                    adjustDiscountPrice: adjustDiscountPrice
+                }),
+                success: function(response) {
+                    $('#batchPriceModal').modal('hide');
+                    if (response.code === 200) {
+                        showAlert(response.data, 'success');
+                        loadBooks(currentPage);
+                    } else {
+                        showAlert('批量调价失败：' + response.msg, 'danger');
+                    }
+                },
+                error: function() {
+                    $('#batchPriceModal').modal('hide');
+                    showAlert('网络错误，请稍后重试', 'danger');
+                }
             });
-            
-            $('#batchPriceModal').modal('hide');
-            showAlert(`已对 ${selectedBooks.size} 本书籍进行调价`, 'success');
-            loadBooks(currentPage);
         }
 
         function exportBooks() {
