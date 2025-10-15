@@ -465,6 +465,9 @@ public class OrderController {
                                      @RequestParam(required = false) String phone,
                                      @RequestParam(required = false) String name,
                                      @RequestParam(required = false) String status,
+                                     @RequestParam(required = false) String deliveryType,
+                                     @RequestParam(required = false) String startDate,
+                                     @RequestParam(required = false) String endDate,
                                      @RequestParam(defaultValue = "1") Integer page,
                                      @RequestParam(defaultValue = "10") Integer size) {
         try {
@@ -489,6 +492,15 @@ public class OrderController {
             }
             if (status != null && !status.trim().isEmpty()) {
                 wrapper.eq(Order::getStatus, status);
+            }
+            if (deliveryType != null && !deliveryType.trim().isEmpty()){
+                wrapper.eq(Order::getDeliveryType, deliveryType);
+            }
+            if (startDate != null && !startDate.trim().isEmpty()) {
+                wrapper.ge(Order::getCreatedat, startDate);
+            }
+            if (endDate != null && !endDate.trim().isEmpty()) {
+                wrapper.le(Order::getCreatedat, endDate);
             }
 
             // 执行分页查询
