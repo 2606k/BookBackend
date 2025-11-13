@@ -1,5 +1,8 @@
 package org.fix.repair.controller;
 
+import cn.hutool.http.HttpUtil;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 // 暂时注释掉复杂的通知解析，使用简化的JSON处理
@@ -10,6 +13,8 @@ import com.wechat.pay.java.core.util.NonceUtil;
 import com.wechat.pay.java.service.payments.jsapi.JsapiService;
 import com.wechat.pay.java.service.payments.jsapi.model.*;
 import com.wechat.pay.java.service.refund.RefundService;
+import jakarta.servlet.http.HttpServletResponse;
+import org.fix.repair.config.WechatUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.wechat.pay.java.service.refund.model.CreateRequest;
 import com.wechat.pay.java.service.refund.model.Refund;
@@ -30,7 +35,9 @@ import org.fix.repair.service.OrderItemService;
 import org.fix.repair.service.OrderService;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.util.StreamUtils;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -61,6 +68,9 @@ public class OrderController {
     @Autowired(required = false)
     private RefundService refundService;
 
+    @Autowired(required = false)
+    private WechatUtil wechatUtil;
+
     public OrderController(OrderService orderService, OrderItemService orderItemService, 
                           OrderMapper orderMapper, BooksService booksService) {
         this.orderService = orderService;
@@ -89,7 +99,7 @@ public class OrderController {
             String phone = (String) params.get("phone");
             String address = (String) params.get("address");
             String remark = (String) params.get("remark");
-            String deliveryType = (String) params.get("deliveryType");
+            String deliveryType =  params.get("deliveryType").toString();
             List<Map<String, Object>> bookItems = (List<Map<String, Object>>) params.get("bookItems");
 
             // 3. 校验书籍库存和存在性
@@ -117,8 +127,12 @@ public class OrderController {
                 orderItemService.save(orderItem);
             }
 
-            // 7. 发起微信支付
-            return initiateWechatPayment(order);
+            // 7. 发起微信支付（若失败则回滚事务，不保存订单）
+            R<Map<String, String>> payResp = initiateWechatPayment(order);
+            if (payResp == null || !Integer.valueOf(200).equals(payResp.getCode())) {
+                throw new RuntimeException("发起支付失败: " + (payResp != null ? payResp.getMsg() : "未知错误"));
+            }
+            return payResp;
 
         } catch (Exception e) {
             log.error("创建订单失败", e);
@@ -153,10 +167,11 @@ public class OrderController {
             Order order = orderService.getOne(
                     new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo)
             );
-            if (order != null && "待支付".equals(order.getStatus())) {
-                order.setStatus("已关闭");
-                orderService.updateById(order);
-                log.info("订单已关闭，订单号: {}", outTradeNo);
+            if (order != null && "0".equals(order.getStatus())) {
+                // 删除订单明细与订单，避免保存未支付订单
+                orderItemService.remove(new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, order.getId()));
+                orderService.removeById(order.getId());
+                log.info("订单已取消并删除，订单号: {}", outTradeNo);
             }
             
             return R.ok("订单关闭成功");
@@ -204,6 +219,66 @@ public class OrderController {
     }
 
     /**
+     * 沙箱/模拟：手动标记支付成功（仅 wxpay.mode = sandbox/mock 生效）
+     */
+    @PostMapping("/sandbox/pay/success")
+    @Transactional(rollbackFor = Exception.class)
+    public R<String> sandboxPaySuccess(@RequestParam String outTradeNo) {
+        if (wechatPayConfig == null || !wechatPayConfig.isMockMode()) {
+            return R.error("当前非沙箱/模拟模式，禁止使用该接口");
+        }
+
+        Order order = orderService.getOne(new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo));
+        if (order == null) {
+            return R.error("订单不存在");
+        }
+        if ("0".equals(order.getStatus())) {
+            return R.ok("订单已支付");
+        }
+
+        // 更新订单状态为已支付并扣减库存
+        order.setStatus("0");
+        order.setPayTime(new Date());
+        orderService.updateById(order);
+        updateBookStock(order.getId());
+
+
+        return R.ok("已模拟支付成功");
+    }
+
+
+
+
+
+
+    /**
+     * 沙箱/模拟：手动标记退款成功（仅 wxpay.mode = sandbox/mock 生效）
+     */
+    @PostMapping("/sandbox/refund/success")
+    @Transactional(rollbackFor = Exception.class)
+    public R<String> sandboxRefundSuccess(@RequestParam String outTradeNo) {
+        if (wechatPayConfig == null || !wechatPayConfig.isMockMode()) {
+            return R.error("当前非沙箱/模拟模式，禁止使用该接口");
+        }
+
+        Order order = orderService.getOne(new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo));
+        if (order == null) {
+            return R.error("订单不存在");
+        }
+
+        // 仅对已支付或申请退款的订单做退款成功
+        if (!"0".equals(order.getStatus()) && !"1".equals(order.getStatus())) {
+            return R.error("订单状态不支持退款");
+        }
+
+        order.setStatus("2");
+        order.setRefundTime(new Date());
+        orderService.updateById(order);
+        restoreBookStock(order.getId());
+        return R.ok("已模拟退款成功");
+    }
+
+    /**
      * 简化的支付成功处理逻辑
      */
     private String handlePaymentSuccessSimple(String notifyData) {
@@ -218,20 +293,67 @@ public class OrderController {
             String eventType = rootNode.path("event_type").asText();
             if (!"TRANSACTION.SUCCESS".equals(eventType)) {
                 log.warn("收到非成功支付事件: {}", eventType);
+                // 若可解析出 out_trade_no，则删除0订单，避免保留失败/取消的订单
+                try {
+                    JsonNode resourceNodeForDelete = rootNode.path("resource");
+                    String outTradeNoToDelete = resourceNodeForDelete.path("out_trade_no").asText(null);
+                    if (outTradeNoToDelete == null || outTradeNoToDelete.isEmpty()) {
+                        outTradeNoToDelete = rootNode.path("out_trade_no").asText(null);
+                    }
+                    if (outTradeNoToDelete != null && !outTradeNoToDelete.isEmpty()) {
+                        deletePendingOrderByOutTradeNo(outTradeNoToDelete);
+                    }
+                } catch (Exception ignore) {
+                }
                 return buildSuccessResponse();
             }
             
             // 获取资源数据（这里简化处理，实际需要解密）
             JsonNode resourceNode = rootNode.path("resource");
-            String algorithm = resourceNode.path("algorithm").asText();
-            String ciphertext = resourceNode.path("ciphertext").asText();
-            String nonce = resourceNode.path("nonce").asText();
-            String associatedData = resourceNode.path("associated_data").asText();
-            
-            // TODO: 这里需要实现解密逻辑，暂时模拟处理
-            log.info("收到支付成功通知，算法: {}, 密文长度: {}", algorithm, ciphertext.length());
-            
-            // 简化返回成功（实际项目中需要完整的解密和验证逻辑）
+            String algorithm = resourceNode.path("algorithm").asText("");
+            String ciphertext = resourceNode.path("ciphertext").asText("");
+            String nonce = resourceNode.path("nonce").asText("");
+            String associatedData = resourceNode.path("associated_data").asText("");
+
+            // 尝试从回调中解析 out_trade_no（未解密场景做兜底）
+            String outTradeNo = null;
+            if (resourceNode != null && !resourceNode.isMissingNode()) {
+                outTradeNo = resourceNode.path("out_trade_no").asText(null);
+                if (outTradeNo == null || outTradeNo.isEmpty()) {
+                    outTradeNo = resourceNode.path("outTradeNo").asText(null);
+                }
+            }
+            if (outTradeNo == null || outTradeNo.isEmpty()) {
+                outTradeNo = rootNode.path("out_trade_no").asText(null);
+                if (outTradeNo == null || outTradeNo.isEmpty()) {
+                    outTradeNo = rootNode.path("outTradeNo").asText(null);
+                }
+            }
+
+            // 记录日志方便排查
+            log.info("支付成功通知解析：algorithm={}, hasCipher={}, outTradeNo={}", algorithm, (ciphertext != null && !ciphertext.isEmpty()), outTradeNo);
+
+            if (outTradeNo == null || outTradeNo.isEmpty()) {
+                log.warn("支付成功回调缺少 out_trade_no，无法更新本地订单状态");
+                return buildSuccessResponse();
+            }
+
+            // 根据 out_trade_no 更新订单状态为已支付
+            Order order = orderService.getOne(new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo));
+            if (order == null) {
+                log.warn("未找到本地订单，outTradeNo={}", outTradeNo);
+                return buildSuccessResponse();
+            }
+
+            if (!"0".equals(order.getStatus())) {
+                order.setStatus("0");
+                order.setPayTime(new Date());
+                orderService.updateById(order);
+                // 扣减库存
+                updateBookStock(order.getId());
+                log.info("订单支付成功，已更新状态并扣减库存，订单号: {}", outTradeNo);
+            }
+
             return buildSuccessResponse();
             
         } catch (Exception e) {
@@ -400,6 +522,22 @@ public class OrderController {
     }
 
     /**
+     * 删除0订单（用于支付失败/取消等场景）
+     */
+    private void deletePendingOrderByOutTradeNo(String outTradeNo) {
+        try {
+            Order order = orderService.getOne(new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo));
+            if (order != null && "0".equals(order.getStatus())) {
+                orderItemService.remove(new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, order.getId()));
+                orderService.removeById(order.getId());
+                log.info("检测到非成功事件，已删除0订单，订单号: {}", outTradeNo);
+            }
+        } catch (Exception e) {
+            log.error("删除0订单失败，订单号: {}", outTradeNo, e);
+        }
+    }
+
+    /**
      * 订单退款（管理员端）
      */
     @PostMapping("/refund/execute")
@@ -407,6 +545,7 @@ public class OrderController {
     public R<String> executeRefund(@RequestParam Long orderId, 
                                   @RequestParam(required = false) String reason) {
         try {
+            // 1. 验证订单存在性和状态
             Order order = orderService.getById(orderId);
             if (order == null) {
                 return R.error("订单不存在");
@@ -414,41 +553,113 @@ public class OrderController {
             if (!"1".equals(order.getStatus()) && !"0".equals(order.getStatus())) {
                 return R.error("订单状态不允许执行退款，当前状态: " + getStatusText(order.getStatus()));
             }
+            
+            // 2. 检查是否为沙箱/模拟模式
+            if (wechatPayConfig != null && wechatPayConfig.isMockMode()) {
+                // 沙箱/模拟模式：直接标记退款成功
+                order.setStatus("2");
+                order.setRefundTime(new Date());
+                if (reason != null && !reason.trim().isEmpty()) {
+                    String newRemark = order.getRemark() != null ? order.getRemark() : "";
+                    newRemark += " [管理员退款: " + reason + "]";
+                    order.setRemark(newRemark);
+                }
+                orderService.updateById(order);
+                restoreBookStock(order.getId());
+                log.info("沙箱/模拟模式：退款成功，订单ID: {}", orderId);
+                return R.ok("沙箱模式：退款成功，已恢复库存");
+            }
+            
+            // 3. 检查微信支付服务是否可用
+            if (refundService == null || wechatPayConfig == null) {
+                // 微信支付未配置，模拟退款成功
+                order.setStatus("2");
+                order.setRefundTime(new Date());
+                if (reason != null && !reason.trim().isEmpty()) {
+                    String newRemark = order.getRemark() != null ? order.getRemark() : "";
+                    newRemark += " [管理员退款: " + reason + "]";
+                    order.setRemark(newRemark);
+                }
+                orderService.updateById(order);
+                restoreBookStock(order.getId());
+                log.warn("微信支付服务未配置，已模拟退款成功，订单ID: {}", orderId);
+                return R.ok("测试环境：退款成功，已恢复库存");
+            }
 
-            // 构建退款请求
+            // 4. 构建退款请求
             CreateRequest refundRequest = new CreateRequest();
             refundRequest.setOutTradeNo(order.getOutTradeNo());
             refundRequest.setOutRefundNo("refund_" + UUID.randomUUID().toString().replace("-", ""));
-            refundRequest.setReason(reason != null ? reason : "管理员执行退款");
+            refundRequest.setReason(reason != null && !reason.trim().isEmpty() ? reason : "管理员执行退款");
             refundRequest.setNotifyUrl(wechatPayConfig.getRefundNotifyUrl());
             
-            // 设置退款金额
+            // 5. 设置退款金额
             com.wechat.pay.java.service.refund.model.AmountReq amount = new com.wechat.pay.java.service.refund.model.AmountReq();
             amount.setRefund((long) order.getMoney());
             amount.setTotal((long) order.getMoney());
             amount.setCurrency("CNY");
             refundRequest.setAmount(amount);
 
-            // 发起退款请求
+            // 6. 发起退款请求
             Refund refund = refundService.create(refundRequest);
             
             log.info("退款请求已发起，退款单号: {}, 状态: {}, 订单号: {}", 
                     refund.getOutRefundNo(), refund.getStatus(), order.getOutTradeNo());
 
-            // 更新订单状态为申请退款（等待微信回调确认）
-            if ("0".equals(order.getStatus())) {
-                order.setStatus("1"); // 申请退款状态，等待微信回调确认
-                String newRemark = order.getRemark() != null ? order.getRemark() : "";
-                newRemark += " [管理员执行退款: " + (reason != null ? reason : "管理员操作") + "]";
-                order.setRemark(newRemark);
+            // 7. 更新订单状态
+            // 如果退款状态为SUCCESS，直接标记为已退款并恢复库存
+            if ("PROCESSING".equals(refund.getStatus().name())) {
+                order.setStatus("2");
+                order.setRefundTime(new Date());
+                if (reason != null && !reason.trim().isEmpty()) {
+                    String newRemark = order.getRemark() != null ? order.getRemark() : "";
+                    newRemark += " [管理员退款: " + reason + "]";
+                    order.setRemark(newRemark);
+                }
                 orderService.updateById(order);
+                restoreBookStock(order.getId());
+                log.info("退款成功，已恢复库存，订单ID: {}", orderId);
+                return R.ok("退款成功，退款单号: " + refund.getOutRefundNo());
+            } else {
+                // 否则更新为申请退款状态，等待微信回调确认
+                if ("0".equals(order.getStatus())) {
+                    order.setStatus("1");
+                    if (reason != null && !reason.trim().isEmpty()) {
+                        String newRemark = order.getRemark() != null ? order.getRemark() : "";
+                        newRemark += " [管理员退款: " + reason + "]";
+                        order.setRemark(newRemark);
+                    }
+                    orderService.updateById(order);
+                }
+                return R.ok("退款请求已发起，退款单号: " + refund.getOutRefundNo() + "，等待处理");
             }
-
-            return R.ok("退款请求已发起，退款单号: " + refund.getOutRefundNo());
             
         } catch (Exception e) {
             log.error("执行退款失败，订单ID: {}", orderId, e);
             return R.error("执行退款失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 查询订单详情
+     */
+    @GetMapping("/detail/{orderId}")
+    public R<Order> getOrderDetail(@PathVariable Long orderId) {
+        try {
+            Order order = orderService.getById(orderId);
+            if (order == null) {
+                return R.error("订单不存在");
+            }
+            
+            // 加载订单项
+            List<OrderItem> items = orderItemService.listByOrderId(order.getId());
+            order.setOrderItems(items);
+            
+            log.info("查询订单详情，订单ID: {}", orderId);
+            return R.ok(order);
+        } catch (Exception e) {
+            log.error("查询订单详情失败，订单ID: {}", orderId, e);
+            return R.error("查询订单详情失败: " + e.getMessage());
         }
     }
 
@@ -596,10 +807,20 @@ public class OrderController {
         order.setAddress(address);
         order.setRemark(remark);
         order.setDeliveryType(deliveryType);
-        order.setOutTradeNo("order_" + UUID.randomUUID().toString().replace("-", ""));
-        order.setStatus("待支付");
+        order.setOutTradeNo(generateOutTradeNo());
+        order.setStatus("0");
         order.setCreatedat(new Date());
         return order;
+    }
+
+    /**
+     * 生成符合微信支付规则的商户订单号：长度 6-32，字母数字，尽量唯一
+     * 格式：ORD + yyyyMMddHHmmss + 12位随机HEX（总长 29）
+     */
+    private String generateOutTradeNo() {
+        String timePart = new java.text.SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
+        String randomHex = UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+        return "ORD" + timePart + randomHex; // 长度 3 + 14 + 12 = 29
     }
 
     /**
@@ -616,7 +837,7 @@ public class OrderController {
                 Integer quantity = Integer.valueOf(item.get("quantity").toString());
 
                 books book = booksService.getBook(bookId);
-                Integer price = book.getPrice();
+                Integer price = book.getDiscountPrice() == null ? book.getPrice() : book.getDiscountPrice();
 
                 totalNum += quantity;
                 totalMoney += price * quantity;
@@ -649,14 +870,43 @@ public class OrderController {
      */
     private R<Map<String, String>> initiateWechatPayment(Order order) {
         try {
+            // 若处于沙箱/模拟模式，直接返回模拟支付参数，避免真实调用
+            if (wechatPayConfig != null && wechatPayConfig.isMockMode()) {
+                Map<String, String> mockPayParams = new HashMap<>();
+                mockPayParams.put("mode", "sandbox");
+                mockPayParams.put("message", "微信支付沙箱/模拟模式：模拟支付成功");
+                mockPayParams.put("orderId", order.getId() != null ? order.getId().toString() : "");
+                mockPayParams.put("outTradeNo", order.getOutTradeNo());
+                mockPayParams.put("amount", order.getMoney() != null ? order.getMoney().toString() : "0");
+                mockPayParams.put("prepayId", "mock_prepay_" + UUID.randomUUID().toString().replace("-", ""));
+                mockPayParams.put("outTradeNo", order.getOutTradeNo());
+                // 模拟立即支付成功：更新订单状态并扣减库存
+                if (!"0".equals(order.getStatus())) {
+                    order.setStatus("0");
+                    order.setPayTime(new Date());
+                    orderService.updateById(order);
+                    updateBookStock(order.getId());
+                    log.info("沙箱/模拟模式：已直接标记支付成功并扣减库存，订单号: {}", order.getOutTradeNo());
+                }
+                return R.ok(mockPayParams);
+            }
+
             // 检查微信支付服务是否可用
             if (jsapiService == null || wechatPayConfig == null) {
-                log.warn("微信支付服务未配置，返回模拟支付参数");
+                log.warn("微信支付服务未配置，模拟立即支付成功");
                 Map<String, String> mockPayParams = new HashMap<>();
-                mockPayParams.put("message", "微信支付服务未配置，这是测试环境");
+                mockPayParams.put("message", "微信支付服务未配置，已模拟支付成功");
                 mockPayParams.put("orderId", order.getId().toString());
                 mockPayParams.put("outTradeNo", order.getOutTradeNo());
                 mockPayParams.put("amount", order.getMoney().toString());
+                mockPayParams.put("outTradeNo", order.getOutTradeNo());
+                if (!"0".equals(order.getStatus())) {
+                    order.setStatus("0");
+                    order.setPayTime(new Date());
+                    orderService.updateById(order);
+                    updateBookStock(order.getId());
+                    log.info("测试环境：已直接标记支付成功并扣减库存，订单号: {}", order.getOutTradeNo());
+                }
                 return R.ok(mockPayParams);
             }
             
@@ -668,9 +918,14 @@ public class OrderController {
             prepayRequest.setOutTradeNo(order.getOutTradeNo());
             prepayRequest.setNotifyUrl(wechatPayConfig.getNotifyUrl());
 
-            // 设置金额
+            // 设置金额（prod 按订单金额；sandbox 强制用测试金额；mock 在前面已短路）
             Amount amount = new Amount();
-            amount.setTotal(order.getMoney());
+            if (wechatPayConfig.isSandbox()) {
+                Integer cents = wechatPayConfig.getTestAmountInCents() != null ? wechatPayConfig.getTestAmountInCents() : 1;
+                amount.setTotal(cents);
+            } else {
+                amount.setTotal(order.getMoney());
+            }
             amount.setCurrency("CNY");
             prepayRequest.setAmount(amount);
 
@@ -704,6 +959,7 @@ public class OrderController {
             payParams.put("package", packageStr);
             payParams.put("signType", signType);
             payParams.put("paySign", paySign);
+            payParams.put("outTradeNo", order.getOutTradeNo());
 
             log.info("发起微信支付成功，订单号: {}, prepay_id: {}", order.getOutTradeNo(), response.getPrepayId());
             return R.ok(payParams);
@@ -729,14 +985,69 @@ public class OrderController {
     }
 
     /**
+     * 前端：支付成功后主动上报（幂等）
+     */
+    @PostMapping("/client/pay/success")
+    @Transactional(rollbackFor = Exception.class)
+    public R<String> clientPaySuccess(@RequestParam String outTradeNo) {
+        Order order = orderService.getOne(new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo));
+        if (order == null) {
+            return R.error("订单不存在");
+        }
+        
+        // 检查是否需要更新订单状态
+        boolean needUpdateStatus = !"0".equals(order.getStatus());
+        
+        if (needUpdateStatus) {
+            order.setStatus("0");
+            order.setPayTime(new Date());
+            orderService.updateById(order);
+            log.info("前端上报支付成功，已更新订单状态，订单号: {}", outTradeNo);
+        }
+        
+        // 确保库存已被扣减（防止重复调用导致重复扣减）
+        updateBookStock(order.getId());
+        
+        return R.ok("已确认支付成功");
+    }
+
+    /**
+     * 前端：支付失败/取消后上报，删除0订单（幂等）
+     */
+    @PostMapping("/client/pay/fail")
+    @Transactional(rollbackFor = Exception.class)
+    public R<String> clientPayFail(@RequestParam String outTradeNo) {
+        deletePendingOrderByOutTradeNo(outTradeNo);
+        return R.ok("已处理支付失败/取消");
+    }
+
+    /**
+     * 管理员前端：设置订单已完成
+     */
+    @PostMapping("/admin/pay/setsuccess")
+    @Transactional(rollbackFor = Exception.class)
+    public R<String> setPaySuccess(@RequestParam String outTradeNo) {
+        Order order = orderService.getOne(new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo));
+        if (order == null) {
+            return R.error("订单不存在");
+        }
+            order.setStatus("3");
+            order.setFinishedat(new Date());
+            orderService.updateById(order);
+            updateBookStock(order.getId());
+            log.info("前端上报支付成功，已更新订单并扣减库存，订单号: {}", outTradeNo);
+        return R.ok("已确认支付成功");
+    }
+
+    /**
      * 获取状态文本
      */
     private String getStatusText(String status) {
         switch (status) {
-            case "待支付": return "待支付";
             case "0": return "已支付";
             case "1": return "申请退款";
             case "2": return "已退款";
+            case "3": return "已完成";
             default: return "未知状态";
         }
     }

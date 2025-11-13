@@ -159,6 +159,7 @@ public class BooksController {
             if (category == null) {
                 return R.error("选择的分类不存在");
             }
+            book.setCategoryName(category.getName());
 
             // 设置创建时间
             book.setCreatedat(new java.util.Date());
@@ -221,6 +222,7 @@ public class BooksController {
             if (category == null) {
                 return R.error("选择的分类不存在");
             }
+            book.setCategoryName(category.getName());
 
             // 保留原有的创建时间
             book.setCreatedat(existingBook.getCreatedat());

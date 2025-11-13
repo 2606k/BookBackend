@@ -68,7 +68,7 @@
                 <div class="position-sticky pt-3">
                     <div class="text-center mb-4">
                         <h5 class="text-white">图书商城管理</h5>
-                        <small class="text-muted">Admin Panel</small>
+<!--                        <small class="text-muted">Admin Panel</small>-->
                     </div>
                     <ul class="nav flex-column">
                         <li class="nav-item">
@@ -101,11 +101,11 @@
                                 <i class="bi bi-graph-up"></i> 数据统计
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/admin/settings">
-                                <i class="bi bi-gear"></i> 系统设置
-                            </a>
-                        </li>
+<!--                        <li class="nav-item">-->
+<!--                            <a class="nav-link" href="/admin/settings">-->
+<!--                                <i class="bi bi-gear"></i> 系统设置-->
+<!--                            </a>-->
+<!--                        </li>-->
                         <li class="nav-item mt-3">
                             <a class="nav-link text-danger" href="/admin/logout" onclick="return confirm('确定要退出吗？')">
                                 <i class="bi bi-box-arrow-right"></i> 退出登录
@@ -232,7 +232,7 @@
                 </div>
 
                 <!-- 系统信息 -->
-                <div class="row">
+                <!--<div class="row">
                     <div class="col-12">
                         <div class="card">
                             <div class="card-header">
@@ -252,7 +252,7 @@
                                             </tr>
                                             <tr>
                                                 <td><strong>最后更新:</strong></td>
-                                                <td id="lastUpdate">--</td>
+                                                <td id="lastUpdate">&#45;&#45;</td>
                                             </tr>
                                         </table>
                                     </div>
@@ -282,7 +282,7 @@
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>-->
             </main>
         </div>
     </div>
@@ -300,20 +300,30 @@
 
         function loadStatisticsData() {
             // 加载基础统计数据
-            $.get('/admin/api/statistics', function(response) {
-                if (response.code === 200) {
-                    const data = response.data;
-                    $('#totalBooks').text(data.totalBooks || 0);
-                    $('#totalCategories').text(data.totalCategories || 0);
-                    $('#totalUsers').text(data.totalUsers || 0);
-                    $('#totalStock').text(data.totalStock || 0);
-                    
-                    updateStockChart(data);
-                } else {
-                    showAlert('加载统计数据失败: ' + response.msg, 'danger');
+            $.ajax({
+                url: '/admin/api/statistics',
+                type: 'GET',
+                success: function(response) {
+                    if (response.code === 200) {
+                        const data = response.data;
+                        $('#totalBooks').text(data.totalBooks || 0);
+                        $('#totalCategories').text(data.totalCategories || 0);
+                        $('#totalUsers').text(data.totalUsers || 0);
+                        $('#totalStock').text(data.totalStock || 0);
+                        
+                        updateStockChart(data);
+                    } else {
+                        showAlert('加载统计数据失败: ' + response.msg, 'danger');
+                    }
+                },
+                error: function() {
+                    showAlert('加载统计数据失败，请检查网络连接', 'danger');
+                    // 显示默认值
+                    $('#totalBooks').text('--');
+                    $('#totalCategories').text('--');
+                    $('#totalUsers').text('--');
+                    $('#totalStock').text('--');
                 }
-            }).fail(function() {
-                showAlert('加载统计数据失败，请检查网络连接', 'danger');
             });
 
             // 加载库存预警
@@ -375,24 +385,34 @@
         }
 
         function updateStockChart(data) {
-            // 模拟库存状态数据
-            const sufficient = Math.floor((data.totalBooks || 0) * 0.7);
-            const low = data.lowStockCount || 0;
-            const outOfStock = Math.max(0, (data.totalBooks || 0) - sufficient - low);
-
-            stockChart.data.datasets[0].data = [sufficient, low, outOfStock];
+            // 计算库存状态数据
+            const lowStockCount = data.lowStockCount || 0;
+            const totalBooks = data.totalBooks || 0;
+            
+            // 假设库存充足的标准是大于10，库存不足是5-10，缺货是0-5
+            const sufficientCount = Math.max(0, totalBooks - lowStockCount);
+            const lowCount = lowStockCount;
+            const outOfStockCount = 0; // 需要从后端获取准确数据
+            
+            stockChart.data.datasets[0].data = [sufficientCount, lowCount, outOfStockCount];
             stockChart.update();
         }
 
         function loadLowStockBooks() {
-            $.get('/api/books/lowStock?threshold=10', function(response) {
-                if (response.code === 200) {
-                    displayLowStockBooks(response.data);
-                } else {
-                    $('#lowStockBooks').html('<p class="text-muted">暂无库存预警数据</p>');
+            $.ajax({
+                url: '/api/books/lowStock',
+                type: 'GET',
+                data: { threshold: 10 },
+                success: function(response) {
+                    if (response.code === 200 && response.data) {
+                        displayLowStockBooks(response.data);
+                    } else {
+                        $('#lowStockBooks').html('<p class="text-muted"><i class="bi bi-info-circle"></i> 暂无库存预警数据</p>');
+                    }
+                },
+                error: function() {
+                    $('#lowStockBooks').html('<p class="text-danger"><i class="bi bi-exclamation-circle"></i> 加载库存预警失败</p>');
                 }
-            }).fail(function() {
-                $('#lowStockBooks').html('<p class="text-danger">加载库存预警失败</p>');
             });
         }
 
@@ -423,34 +443,51 @@
         }
 
         function loadCategoryDetails() {
-            $.get('/category/list', function(response) {
-                if (response.code === 200) {
-                    displayCategoryDetails(response.data);
-                    updateCategoryChart(response.data);
-                } else {
-                    $('#categoryDetails').html('<p class="text-muted">暂无分类数据</p>');
+            $.ajax({
+                url: '/category/list',
+                type: 'GET',
+                data: { page: 1, size: 100 }, // 获取所有分类
+                success: function(response) {
+                    if (response.code === 200 && response.data && response.data.records) {
+                        const categories = response.data.records;
+                        displayCategoryDetails(categories);
+                        updateCategoryChart(categories);
+                    } else {
+                        $('#categoryDetails').html('<p class="text-muted"><i class="bi bi-info-circle"></i> 暂无分类数据</p>');
+                        // 清空图表
+                        categoryChart.data.labels = [];
+                        categoryChart.data.datasets[0].data = [];
+                        categoryChart.update();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('加载分类失败:', error);
+                    $('#categoryDetails').html('<p class="text-danger"><i class="bi bi-exclamation-circle"></i> 加载分类数据失败</p>');
+                    // 清空图表
+                    categoryChart.data.labels = [];
+                    categoryChart.data.datasets[0].data = [];
+                    categoryChart.update();
                 }
-            }).fail(function() {
-                $('#categoryDetails').html('<p class="text-danger">加载分类数据失败</p>');
             });
         }
 
         function displayCategoryDetails(categories) {
             const container = $('#categoryDetails');
             
-            if (categories.length === 0) {
-                container.html('<p class="text-muted">暂无分类数据</p>');
+            if (!categories || categories.length === 0) {
+                container.html('<p class="text-muted"><i class="bi bi-info-circle"></i> 暂无分类数据</p>');
                 return;
             }
 
             let html = '';
             categories.forEach(category => {
+                const createTime = category.createdat ? new Date(category.createdat).toLocaleDateString('zh-CN') : '未知';
                 html += `
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-3 p-2 border-start border-primary border-3" style="background-color: #f8f9fa;">
                         <div>
-                            <strong>${category.name}</strong>
+                            <strong class="text-primary">${category.name}</strong>
                             <br>
-                            <small class="text-muted">创建时间: ${new Date(category.createdat).toLocaleDateString()}</small>
+                            <small class="text-muted"><i class="bi bi-calendar"></i> ${createTime}</small>
                         </div>
                         <span class="badge bg-primary">分类</span>
                     </div>
@@ -461,13 +498,41 @@
         }
 
         function updateCategoryChart(categories) {
-            // 模拟每个分类的书籍数量
+            if (!categories || categories.length === 0) {
+                categoryChart.data.labels = ['暂无数据'];
+                categoryChart.data.datasets[0].data = [0];
+                categoryChart.update();
+                return;
+            }
+
+            // 获取每个分类下的书籍数量（需要调用API，这里先用模拟数据）
             const labels = categories.map(cat => cat.name);
             const data = categories.map(() => Math.floor(Math.random() * 20) + 1);
 
             categoryChart.data.labels = labels;
             categoryChart.data.datasets[0].data = data;
+            categoryChart.data.datasets[0].backgroundColor = generateColors(categories.length);
+            categoryChart.data.datasets[0].borderColor = generateColors(categories.length, 0.8);
             categoryChart.update();
+        }
+
+        function generateColors(count, alpha = 0.6) {
+            const colors = [];
+            const baseColors = [
+                `rgba(0, 123, 255, ${alpha})`,    // 蓝色
+                `rgba(40, 167, 69, ${alpha})`,    // 绿色
+                `rgba(255, 193, 7, ${alpha})`,    // 黄色
+                `rgba(220, 53, 69, ${alpha})`,    // 红色
+                `rgba(108, 117, 125, ${alpha})`,  // 灰色
+                `rgba(23, 162, 184, ${alpha})`,   // 青色
+                `rgba(111, 66, 193, ${alpha})`,   // 紫色
+                `rgba(253, 126, 20, ${alpha})`    // 橙色
+            ];
+            
+            for (let i = 0; i < count; i++) {
+                colors.push(baseColors[i % baseColors.length]);
+            }
+            return colors;
         }
 
         function refreshData() {

@@ -49,6 +49,7 @@ public class AdminController {
     private final BooksService booksService;
     private final CategoriesService categoriesService;
     private final MinioUtil minioUtil;
+    private final org.fix.repair.service.OrderService orderService;
 
     /**
      * 管理员注册
@@ -279,10 +280,19 @@ public class AdminController {
             long totalCategories = categoriesService.count();
             statistics.put("totalCategories", totalCategories);
             
-            // 模拟其他统计数据（订单相关）
-            statistics.put("totalOrders", 1234);
-            statistics.put("totalRevenue", 89567.0);
-            statistics.put("activeUsers", 2890);
+            // 订单统计（真实数据）
+            long totalOrders = orderService.count();
+            statistics.put("totalOrders", totalOrders);
+            
+            // 计算总销售额（只统计已支付和已完成的订单）
+            List<org.fix.repair.entity.Order> paidOrders = orderService.list(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.fix.repair.entity.Order>()
+                            .in(org.fix.repair.entity.Order::getStatus, "0", "3") // 0=已支付, 3=已完成
+            );
+            double totalRevenue = paidOrders.stream()
+                    .mapToDouble(order -> order.getMoney() / 100.0) // 转换为元
+                    .sum();
+            statistics.put("totalRevenue", totalRevenue);
             
             log.info("获取管理端统计数据成功");
             return R.ok(statistics);
@@ -606,24 +616,49 @@ public class AdminController {
     }
 
     /**
-     * 获取最近订单（简化版本）
+     * 获取最近订单
      */
     @GetMapping("/api/orders/recent")
     @ResponseBody
-    public R<List<Map<String, Object>>> getRecentOrders(@RequestParam(defaultValue = "5") Integer limit) {
+    public R<List<Map<String, Object>>> getRecentOrders(@RequestParam(defaultValue = "10") Integer limit) {
         try {
-            // 这里简化处理，返回模拟数据
-            // 实际应该从Order表中查询最新的订单
-            List<Map<String, Object>> recentOrders = new java.util.ArrayList<>();
+            // 从数据库查询最新的订单
+            com.baomidou.mybatisplus.extension.plugins.pagination.Page<org.fix.repair.entity.Order> page = 
+                    new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, limit);
+            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.fix.repair.entity.Order> queryWrapper = 
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+            queryWrapper.orderByDesc(org.fix.repair.entity.Order::getCreatedat);
             
-            for (int i = 1; i <= limit; i++) {
-                Map<String, Object> order = new HashMap<>();
-                order.put("id", "ORDER_" + String.format("%03d", i));
-                order.put("customer", "用户" + i);
-                order.put("amount", 89.50 + i * 10);
-                order.put("status", i % 3 == 0 ? "已支付" : i % 3 == 1 ? "待支付" : "已完成");
-                order.put("time", new java.util.Date());
-                recentOrders.add(order);
+            orderService.page(page, queryWrapper);
+            
+            List<Map<String, Object>> recentOrders = new java.util.ArrayList<>();
+            for (org.fix.repair.entity.Order order : page.getRecords()) {
+                Map<String, Object> orderData = new HashMap<>();
+                orderData.put("id", order.getOutTradeNo() != null ? order.getOutTradeNo() : "ORD-" + order.getId());
+                orderData.put("customer", order.getName());
+                orderData.put("amount", order.getMoney() / 100.0);
+                
+                // 状态映射
+                String statusText;
+                switch (order.getStatus()) {
+                    case "0":
+                        statusText = "已支付";
+                        break;
+                    case "1":
+                        statusText = "申请退款";
+                        break;
+                    case "2":
+                        statusText = "已退款";
+                        break;
+                    case "3":
+                        statusText = "已完成";
+                        break;
+                    default:
+                        statusText = "未知";
+                }
+                orderData.put("status", statusText);
+                orderData.put("time", order.getCreatedat());
+                recentOrders.add(orderData);
             }
             
             log.info("获取最近{}条订单成功", limit);

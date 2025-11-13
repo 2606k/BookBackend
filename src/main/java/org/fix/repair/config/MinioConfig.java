@@ -25,26 +25,27 @@ public class MinioConfig implements CommandLineRunner {
             MinioClient minioClient = MinioClient.builder()
                     .endpoint(minioProperties.getEndpointUrl())
                     .credentials(minioProperties.getAccessKey(), minioProperties.getSecreKey())
+                    .region("us-east-1")
                     .build();
 
             // 检查存储桶是否存在
-            boolean bucketExists = minioClient.bucketExists(
-                    BucketExistsArgs.builder()
-                            .bucket(minioProperties.getBucketName())
-                            .build()
-            );
-
-            if (!bucketExists) {
-                // 创建存储桶
-                minioClient.makeBucket(
-                        MakeBucketArgs.builder()
-                                .bucket(minioProperties.getBucketName())
-                                .build()
-                );
-                log.info("MinIO存储桶创建成功: {}", minioProperties.getBucketName());
-            } else {
-                log.info("MinIO存储桶已存在: {}", minioProperties.getBucketName());
-            }
+//            boolean bucketExists = minioClient.bucketExists(
+//                    BucketExistsArgs.builder()
+//                            .bucket(minioProperties.getBucketName())
+//                            .build()
+//            );
+//
+//            if (!bucketExists) {
+//                // 创建存储桶
+//                minioClient.makeBucket(
+//                        MakeBucketArgs.builder()
+//                                .bucket(minioProperties.getBucketName())
+//                                .build()
+//                );
+//                log.info("MinIO存储桶创建成功: {}", minioProperties.getBucketName());
+//            } else {
+//                log.info("MinIO存储桶已存在: {}", minioProperties.getBucketName());
+//            }
 
             log.info("MinIO初始化完成，端点: {}", minioProperties.getEndpointUrl());
         } catch (Exception e) {

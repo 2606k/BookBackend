@@ -24,6 +24,12 @@ public class books {
     private Long categoryId;
 
     /**
+     * 分类名称
+     */
+    @TableField(value = "category_name")
+    private String categoryName;
+
+    /**
      * 图书名称
      */
     @TableField(value = "book_name")

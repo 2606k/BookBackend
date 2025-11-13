@@ -52,6 +52,7 @@ public class Order {
     @TableField(value = "remark")
     private String remark;
 
+
     /**
      * 购买地址
      */
@@ -72,7 +73,7 @@ public class Order {
 
 
     /**
-     * 购买状态  0:已支付 1：申请退款 2:已退款
+     * 购买状态  0:已支付 1：申请退款 2:已退款 3:已完成
      */
     @TableField(value = "status")
     private String status;
@@ -113,6 +114,13 @@ public class Order {
      */
     @TableField(value = "created_at")
     private Date createdat;
+
+    /**
+     * 完成时间
+     */
+    @TableField(value = "finished_at")
+    private Date finishedat;
+
 
     /**
      * 订单项列表（不映射到数据库）
