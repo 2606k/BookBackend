@@ -147,6 +147,7 @@
                                 <select class="form-select" id="searchStatus">
                                     <option value="">全部状态</option>
                                     <option value="0">已支付</option>
+                                    <option value="4">待收货</option>
                                     <option value="1">申请退款</option>
                                     <option value="2">已退款</option>
                                     <option value="3">已完成</option>
@@ -518,6 +519,7 @@
                 '1': '<span class="badge bg-info status-badge">申请退款</span>',
                 '2': '<span class="badge bg-secondary status-badge">已退款</span>',
                 '3': '<span class="badge bg-primary status-badge">已完成</span>',
+                '4': '<span class="badge bg-warning status-badge">待收货</span>',
             };
             return statusMap[status] || '<span class="badge bg-light text-dark status-badge">未知</span>';
         }
@@ -530,6 +532,11 @@
                     <i class="bi bi-arrow-return-left"></i> 执行退款
                 </button>`;
             }
+            // else if (order.status === '4'){
+            //     buttons += `<button class="btn btn-outline-success btn-action mt-1" onclick="completeOrder(${order.id})">
+            //         <i class="bi bi-check-circle"></i> 完成订单
+            //     </button>`;
+            // }
             
             // if (order.status === '待支付') {
             //     buttons += `<button class="btn btn-outline-secondary btn-action mt-1" onclick="closeOrder('${order.outTradeNo}')">
@@ -823,18 +830,18 @@
             });
         }
 
-        function closeOrder(outTradeNo) {
-            if (!confirm('确定要关闭此订单吗？')) return;
+        function completeOrder(orderId) {
+            if (!confirm('确定要完成此订单吗？')) return;
             
             $.ajax({
-                url: `/appoint/closeOrder/${outTradeNo}`,
+                url: `/appoint/admin/pay/setsuccess/${orderId}`,
                 type: 'GET',
                 success: function(response) {
                     if (response.code === 200) {
-                        showAlert('订单已关闭', 'success');
+                        showAlert('订单已完成！', 'success');
                         loadOrders(currentPage);
                     } else {
-                        showAlert('关闭订单失败：' + response.msg, 'danger');
+                        showAlert('完成订单失败：' + response.msg, 'danger');
                     }
                 },
                 error: function() {

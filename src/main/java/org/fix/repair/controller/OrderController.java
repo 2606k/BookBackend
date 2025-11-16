@@ -643,25 +643,39 @@ public class OrderController {
     /**
      * 查询订单详情
      */
-    @GetMapping("/detail/{orderId}")
-    public R<Order> getOrderDetail(@PathVariable Long orderId) {
+    @GetMapping("/detail")
+    public R<Order> getOrderDetailByQuery(@RequestParam(required = false) String merchant_trade_no) {
+        if (merchant_trade_no != null && !merchant_trade_no.isEmpty()) {
+            return getOrderDetailInternal(merchant_trade_no);
+        }
+        return R.error("缺少订单号参数");
+    }
+
+    @GetMapping("/detail/{outTradeNo}")
+    public R<Order> getOrderDetailByPath(@PathVariable String outTradeNo) {
+        return getOrderDetailInternal(outTradeNo);
+    }
+
+    // 公共业务逻辑抽取
+    private R<Order> getOrderDetailInternal(String outTradeNo) {
         try {
-            Order order = orderService.getById(orderId);
+            Order order = orderService.getOne(new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo));
             if (order == null) {
                 return R.error("订单不存在");
             }
-            
+
             // 加载订单项
             List<OrderItem> items = orderItemService.listByOrderId(order.getId());
             order.setOrderItems(items);
-            
-            log.info("查询订单详情，订单ID: {}", orderId);
+
+            log.info("查询订单详情，订单号: {}", outTradeNo);
             return R.ok(order);
         } catch (Exception e) {
-            log.error("查询订单详情失败，订单ID: {}", orderId, e);
+            log.error("查询订单详情失败，订单号: {}", outTradeNo, e);
             return R.error("查询订单详情失败: " + e.getMessage());
         }
     }
+
 
     /**
      * 查询订单
@@ -852,7 +866,7 @@ public class OrderController {
             }
 
             order.setNum(totalNum);
-            order.setMoney(totalMoney);
+            order.setMoney(totalMoney / 100);
 
             Map<String, Object> result = new HashMap<>();
             result.put("order", order);
@@ -1026,16 +1040,40 @@ public class OrderController {
      */
     @PostMapping("/admin/pay/setsuccess")
     @Transactional(rollbackFor = Exception.class)
-    public R<String> setPaySuccess(@RequestParam String outTradeNo) {
-        Order order = orderService.getOne(new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo));
+    public R<String> setPaySuccess(@RequestParam String orderId) {
+        Order order = orderService.getOne(new LambdaQueryWrapper<Order>().eq(Order::getId, orderId));
         if (order == null) {
             return R.error("订单不存在");
         }
-            order.setStatus("3");
+        if (!"5".equals(order.getStatus())){
+            return R.error("此订单待收货！");
+        }
+            order.setStatus("4");
             order.setFinishedat(new Date());
             orderService.updateById(order);
-            updateBookStock(order.getId());
-            log.info("前端上报支付成功，已更新订单并扣减库存，订单号: {}", outTradeNo);
+//            updateBookStock(order.getId());
+            log.info("前端上报支付成功，已更新订单为待收货状态，订单号: {}", orderId);
+        return R.ok("已确认支付成功");
+    }
+
+    /**
+     * 小程序用户：设置订单确认收货
+     */
+    @PostMapping("/user/pay/setUserPaysuccess")
+    @Transactional(rollbackFor = Exception.class)
+    public R<String> setUserPaySuccess(@RequestParam Long orderId) {
+        Order order = orderService.getOne(new LambdaQueryWrapper<Order>().eq(Order::getId, orderId));
+        if (order == null) {
+            return R.error("订单不存在");
+        }
+        if (!"4".equals(order.getStatus())){
+            return R.error("非待收货状态！");
+        }
+        order.setStatus("3");
+        order.setFinishedat(new Date());
+        orderService.updateById(order);
+//        updateBookStock(order.getId());
+        log.info("前端上报支付成功，已更新订单为完成状态，订单号: {}", orderId);
         return R.ok("已确认支付成功");
     }
 
@@ -1048,6 +1086,7 @@ public class OrderController {
             case "1": return "申请退款";
             case "2": return "已退款";
             case "3": return "已完成";
+            case "4": return "待收货";
             default: return "未知状态";
         }
     }

@@ -197,7 +197,7 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
                 } else {
                     // 更新商品信息（价格可能有变化）
                     cart.setBookName(book.getBookName());
-                    cart.setPrice(book.getPrice());
+                    cart.setPrice(book.getDiscountPrice() != null ? book.getDiscountPrice() : book.getPrice());
                     cart.setImageUrl(book.getImageurl());
                 }
             }

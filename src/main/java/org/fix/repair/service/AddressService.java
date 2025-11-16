@@ -8,4 +8,6 @@ import java.util.Map;
 
 public interface AddressService extends IService<Address> {
     R<String> addAddress(Map<String, Object> addressInfo);
+
+    boolean updateAddress(Map<String, Object> addressInfo);
 }

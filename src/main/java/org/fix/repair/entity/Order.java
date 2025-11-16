@@ -73,13 +73,13 @@ public class Order {
 
 
     /**
-     * 购买状态  0:已支付 1：申请退款 2:已退款 3:已完成
+     * 购买状态  0:已支付 1：申请退款 2:已退款 3:已完成 4.已发货
      */
     @TableField(value = "status")
     private String status;
 
     /**
-     * 订单取货类型
+     * 订单取货类型 1:送货上门 2：自提
      */
     @TableField(value = "delivery_type")
     private String deliveryType;

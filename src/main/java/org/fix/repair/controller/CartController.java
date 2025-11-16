@@ -43,12 +43,13 @@ public class CartController {
     /**
      * 更新购物车商品数量
      * @param cartId 购物车ID
-     * @param quantity 新数量
+     * @param
      * @return 更新结果
      */
     @PutMapping("/update/{cartId}")
-    public R<String> updateQuantity(@PathVariable Long cartId, @RequestParam Integer quantity) {
+    public R<String> updateQuantity(@PathVariable Long cartId, @RequestBody Map<String, Integer> request) {
         try {
+            Integer quantity = request.get("quantity");
             log.info("更新购物车数量，购物车ID: {}, 数量: {}", cartId, quantity);
             return cartService.updateQuantity(cartId, quantity);
         } catch (Exception e) {

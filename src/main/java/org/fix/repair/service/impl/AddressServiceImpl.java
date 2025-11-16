@@ -24,4 +24,14 @@ public class AddressServiceImpl extends ServiceImpl<AddressMapper, Address> impl
             return R.error("添加失败");
         }
     }
+
+    @Override
+    public boolean updateAddress(Map<String, Object> addressInfo) {
+        Address address = new Address();
+        address.setId((Long) addressInfo.get("id"));
+        address.setName((String) addressInfo.get("name"));
+        address.setPhone((String) addressInfo.get("phone"));
+        address.setAddress((String) addressInfo.get("address"));
+        return this.updateById(address);
+    }
 }

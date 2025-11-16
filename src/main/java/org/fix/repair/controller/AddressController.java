@@ -3,7 +3,6 @@ package org.fix.repair.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.fix.repair.common.R;
 import org.fix.repair.entity.Address;
-import org.fix.repair.entity.appointments;
 import org.fix.repair.mapper.AddressMapper;
 import org.fix.repair.service.AddressService;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -50,5 +49,15 @@ public class AddressController {
     @RequestMapping("/add")
     public R<String> add(@RequestBody Map<String, Object> addressInfo) {
         return addressService.addAddress(addressInfo);
+    }
+
+    @RequestMapping("/delete")
+    public boolean delete(@RequestBody Integer id) {
+        return addressService.removeById(id);
+    }
+
+    @RequestMapping("/update")
+    public boolean update(@RequestBody Map<String, Object> addressInfo) {
+        return addressService.updateAddress(addressInfo);
     }
 }

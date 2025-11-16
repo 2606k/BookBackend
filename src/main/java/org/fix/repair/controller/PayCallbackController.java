@@ -1,6 +1,7 @@
 package org.fix.repair.controller;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.wechat.pay.java.core.Config;
 import com.wechat.pay.java.core.notification.NotificationConfig;
@@ -8,16 +9,27 @@ import com.wechat.pay.java.core.notification.NotificationParser;
 import com.wechat.pay.java.core.notification.RequestParam;
 import com.wechat.pay.java.service.payments.model.Transaction;
 import lombok.extern.slf4j.Slf4j;
+import org.fix.repair.config.WechatPayConfig;
 import org.fix.repair.config.WechatUtil;
+import org.fix.repair.entity.Order;
+import org.fix.repair.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 @RestController
@@ -31,9 +43,12 @@ public class PayCallbackController {
     @Autowired
     private WechatUtil wechatUtil;
 
+    @Autowired
+    private WechatPayConfig wechatPayConfig;
+
     // TODO: 注入你的订单服务
-    // @Autowired
-    // private OrderService orderService;
+     @Autowired
+     private OrderService orderService;
 
     @PostMapping("/callback")
     public ResponseEntity<Map<String, String>> payCallback(
@@ -87,7 +102,12 @@ public class PayCallbackController {
             // 5. 发货通知
 //            notifyWechatDelivery(outTradeNo, transactionId);
 
-            notifyWechatDeliveryForSelfPickup(outTradeNo,transactionId);
+            boolean confirm = notifyWechatDeliveryForSelfPickup(outTradeNo, transactionId);
+            if (!confirm) {
+                log.error("【发货失败】{}", outTradeNo);
+                return ResponseEntity.status(500)
+                        .body(Map.of("code", "FAIL", "message", "系统异常"));
+            }
 
             return ResponseEntity.ok(Map.of("code", "SUCCESS"));
 
@@ -127,61 +147,93 @@ public class PayCallbackController {
         }
     }
 
-    private void notifyWechatDeliveryForSelfPickup(String outTradeNo,String transactionId) {
+    private boolean notifyWechatDeliveryForSelfPickup(String outTradeNo,String transactionId) {
         if (outTradeNo == null || outTradeNo.isEmpty()) {
             log.warn("【自提发货】订单号为空");
-            return;
+            return  false;
         }
 
         try {
             String accessToken = wechatUtil.getAccessToken();
             if (accessToken == null || accessToken.isEmpty()) {
                 log.error("【自提发货】access_token 获取失败");
-                return;
+                return  false;
             }
 
+//            String url = "https://api.weixin.qq.com/wxa/sec/order/upload_shipping_info?access_token=" + accessToken;
+
+            Order order = orderService.getUserOpenidByOutTradeNo(outTradeNo);
+
+            // === 3. 构造请求体 ===
+            JSONObject orderKey = new JSONObject();
+            orderKey.put("order_number_type", 1); // 2使用 transaction_id
+            orderKey.put("transaction_id", transactionId);
+            orderKey.put("out_trade_no", outTradeNo);
+            orderKey.put("mchid",wechatPayConfig.getMchId());
+
+            JSONObject shipItem = new JSONObject();
+            shipItem.put("item_desc",  "图书"); // 防空
+
+            JSONArray shippingList = new JSONArray();
+            shippingList.add(shipItem);
+
+            String uploadTime = Instant.now()
+                    .atZone(ZoneId.of("Asia/Shanghai"))
+                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX"));
+
+            JSONObject payer = new JSONObject();
+            payer.put("openid", order.getOpenid());
+
+            JSONObject requestBody = new JSONObject();
+            requestBody.put("order_key", orderKey);
+            if("1".equals(order.getDeliveryType())) {
+                requestBody.put("logistics_type", 2);
+            } else {
+                requestBody.put("logistics_type", 4);
+            }// 用户自提
+            requestBody.put("delivery_mode", 1);  // 统一发货
+            requestBody.put("is_all_delivered", true);
+            requestBody.put("upload_time", uploadTime);
+            requestBody.put("payer", payer);
+            requestBody.put("shipping_list", shippingList);
+
+            String jsonBody = requestBody.toJSONString();
+            log.info("【自提发货请求JSON】{}", jsonBody);
+
+            // === 4. 发送 HTTP 请求 ===
             String url = "https://api.weixin.qq.com/wxa/sec/order/upload_shipping_info?access_token=" + accessToken;
 
-            JSONObject body = new JSONObject();
-            body.put("order_id", outTradeNo);
-            body.put("delivery_type", 4);
-            body.put("waybill_id", "SELF_" + outTradeNo);
-            body.put("delivery_company", "");
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<String> entity = new HttpEntity<>(jsonBody, headers);
 
-            String jsonBody = body.toJSONString();
-            log.info("【请求JSON】{}", jsonBody);
+            RestTemplate restTemplate = new RestTemplate();
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
 
-            // 使用 Java 原生 HttpClient
-            HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("Content-Type", "application/json; charset=utf-8")
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
-                    .timeout(java.time.Duration.ofSeconds(10))
-                    .build();
+            // === 5. 处理响应 ===
+            log.info("【微信原始响应】{}", response.getBody());
 
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            String result = response.body();
+            JSONObject respJson = JSONObject.parseObject(response.getBody());
+            int errcode = respJson.getIntValue("errcode");
 
-            log.info("【微信原始响应】{}", result);
-
-            JSONObject resp = JSON.parseObject(result);
-            if (resp == null) {
-                log.error("【自提发货】响应非JSON格式，原始内容: {}", result);
-                return;
-            }
-
-            Integer errcode = resp.getInteger("errcode");
-            if (errcode != null && errcode == 0) {
+            if (errcode == 0) {
                 log.info("【自提发货成功】订单: {}", outTradeNo);
+                // 可选：标记订单为“已通知微信发货”
+                order.setStatus("4");
+                order.setTransactionId(transactionId);
+                orderService.update().eq("out_trade_no", outTradeNo).update(order);
+                return true;
+                // orderService.markWechatDeliveryNotified(outTradeNo);
             } else {
-                String errmsg = resp.getString("errmsg");
-                String rid = resp.getString("rid"); // 现在应该能拿到 rid 了
-                log.error("【自提发货失败】订单: {}, errcode: {}, errmsg: {}, rid: {}",
-                        outTradeNo, errcode, errmsg, rid);
+                String errmsg = respJson.getString("errmsg");
+                log.error("【自提发货失败】订单: {}, errcode: {}, errmsg: {}", outTradeNo, errcode, errmsg);
+                return false;
+                // 可考虑重试机制 or 告警
             }
+
         } catch (Exception e) {
             log.error("【自提发货异常】订单: {}", outTradeNo, e);
+            return false;
         }
     }
 
