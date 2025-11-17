@@ -400,7 +400,7 @@ public class OrderController {
             if (order == null) {
                 return R.error("订单不存在");
             }
-            if (!"0".equals(order.getStatus())) {
+            if (!"0".equals(order.getStatus()) &&  !"4".equals(order.getStatus())) {
                 return R.error("订单状态不允许退款，当前状态: " + getStatusText(order.getStatus()));
             }
 
@@ -542,11 +542,11 @@ public class OrderController {
      */
     @PostMapping("/refund/execute")
     @Transactional(rollbackFor = Exception.class)
-    public R<String> executeRefund(@RequestParam Long orderId, 
+    public R<String> executeRefund(@RequestParam String outTradeNo,
                                   @RequestParam(required = false) String reason) {
         try {
             // 1. 验证订单存在性和状态
-            Order order = orderService.getById(orderId);
+            Order order = orderService.getOne(new LambdaQueryWrapper<Order>().eq(Order::getOutTradeNo, outTradeNo));
             if (order == null) {
                 return R.error("订单不存在");
             }
@@ -566,7 +566,7 @@ public class OrderController {
                 }
                 orderService.updateById(order);
                 restoreBookStock(order.getId());
-                log.info("沙箱/模拟模式：退款成功，订单ID: {}", orderId);
+                log.info("沙箱/模拟模式：退款成功，订单ID: {}", outTradeNo);
                 return R.ok("沙箱模式：退款成功，已恢复库存");
             }
             
@@ -582,7 +582,7 @@ public class OrderController {
                 }
                 orderService.updateById(order);
                 restoreBookStock(order.getId());
-                log.warn("微信支付服务未配置，已模拟退款成功，订单ID: {}", orderId);
+                log.warn("微信支付服务未配置，已模拟退款成功，订单ID: {}", outTradeNo);
                 return R.ok("测试环境：退款成功，已恢复库存");
             }
 
@@ -618,7 +618,7 @@ public class OrderController {
                 }
                 orderService.updateById(order);
                 restoreBookStock(order.getId());
-                log.info("退款成功，已恢复库存，订单ID: {}", orderId);
+                log.info("退款成功，已恢复库存，订单号: {}", outTradeNo);
                 return R.ok("退款成功，退款单号: " + refund.getOutRefundNo());
             } else {
                 // 否则更新为申请退款状态，等待微信回调确认
@@ -635,7 +635,7 @@ public class OrderController {
             }
             
         } catch (Exception e) {
-            log.error("执行退款失败，订单ID: {}", orderId, e);
+            log.error("执行退款失败，订单号: {}", outTradeNo, e);
             return R.error("执行退款失败: " + e.getMessage());
         }
     }
@@ -866,7 +866,7 @@ public class OrderController {
             }
 
             order.setNum(totalNum);
-            order.setMoney(totalMoney / 100);
+            order.setMoney(totalMoney);
 
             Map<String, Object> result = new HashMap<>();
             result.put("order", order);
