@@ -542,7 +542,10 @@
                             }
                         </td>
                         <td>
-                            <div class="fw-bold">${book.bookName}</div>
+                            <div class="fw-bold">
+                                ${book.isPinned === 1 ? '<i class="bi bi-pin-fill text-warning me-1" title="已置顶"></i>' : ''}
+                                ${book.bookName}
+                            </div>
                             <div class="text-muted small">作者：${book.author}</div>
                             <div class="text-muted small">出版社：${book.publisher}</div>
                         </td>
@@ -569,6 +572,11 @@
                         <td>${statusBadge}</td>
                         <td>
                             <div class="btn-group btn-group-sm">
+                                <button class="btn ${book.isPinned === 1 ? 'btn-warning' : 'btn-outline-warning'}"
+                                        onclick="togglePinBook(${book.id}, ${book.isPinned || 0})"
+                                        title="${book.isPinned === 1 ? '取消置顶' : '置顶'}">
+                                    <i class="bi ${book.isPinned === 1 ? 'bi-pin-fill' : 'bi-pin'}"></i>
+                                </button>
                                 <button class="btn btn-outline-primary" onclick="editBook(${book.id})">
                                     <i class="bi bi-pencil"></i>
                                 </button>
@@ -881,6 +889,30 @@
                         loadBooks(currentPage);
                     } else {
                         showAlert('书籍删除失败：' + response.msg, 'danger');
+                    }
+                },
+                error: function() {
+                    showAlert('网络错误，请稍后重试', 'danger');
+                }
+            });
+        }
+
+        function togglePinBook(bookId, currentPinStatus) {
+            const action = currentPinStatus === 1 ? '取消置顶' : '置顶';
+
+            // 调用置顶API
+            $.ajax({
+                url: '/api/books/togglePin',
+                type: 'POST',
+                data: {
+                    bookId: bookId
+                },
+                success: function(response) {
+                    if (response.code === 200) {
+                        showAlert(response.data, 'success');
+                        loadBooks(currentPage);
+                    } else {
+                        showAlert(action + '失败：' + response.msg, 'danger');
                     }
                 },
                 error: function() {

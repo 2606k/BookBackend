@@ -37,6 +37,7 @@ public class BooksController {
                                                @RequestParam(required = false) Integer minPrice,
                                                @RequestParam(required = false) Integer maxPrice,
                                                @RequestParam(required = false) String stockStatus,
+                                               @RequestParam(required = false) Integer isPinned,
                                                @RequestParam(required = false) Long categoryId) {
         try {
             // 创建分页对象
@@ -56,6 +57,9 @@ public class BooksController {
             }
             if (maxPrice != null) {
                 queryWrapper.le(books::getPrice, maxPrice * 100);
+            }
+            if(isPinned != null){
+                queryWrapper.eq(books::getIsPinned,isPinned);
             }
             
             // 分类查询
@@ -78,8 +82,9 @@ public class BooksController {
                 }
             }
             
-            // 按创建时间倒序
-            queryWrapper.orderByDesc(books::getCreatedat);
+            // 按置顶状态倒序，然后按创建时间倒序
+            queryWrapper.orderByDesc(books::getIsPinned)
+                       .orderByDesc(books::getCreatedat);
             
             // 执行分页查询
             Page<books> result = booksService.page(pageObj, queryWrapper);
@@ -534,7 +539,7 @@ public class BooksController {
     public R<Map<String, Object>> getBookStatistics() {
         try {
             List<books> allBooks = booksService.list();
-            
+
             Map<String, Object> statistics = new java.util.HashMap<>();
             statistics.put("totalBooks", allBooks.size());
             statistics.put("totalStock", allBooks.stream().mapToInt(books::getStock).sum());
@@ -545,12 +550,42 @@ public class BooksController {
                     .mapToInt(books::getPrice)
                     .average()
                     .orElse(0.0) / 100.0); // 转换为元
-            
+
             log.info("获取书籍统计信息成功");
             return R.ok(statistics);
         } catch (Exception e) {
             log.error("获取书籍统计信息失败", e);
             return R.error("获取统计信息失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 置顶/取消置顶书籍
+     */
+    @PostMapping("/togglePin")
+    public R<String> togglePinBook(@RequestParam Long bookId) {
+        try {
+            books book = booksService.getBook(bookId);
+            if (book == null) {
+                return R.error("书籍不存在");
+            }
+
+            // 切换置顶状态
+            Integer currentPinStatus = book.getIsPinned();
+            Integer newPinStatus = (currentPinStatus != null && currentPinStatus == 1) ? 0 : 1;
+            book.setIsPinned(newPinStatus);
+
+            boolean success = booksService.updateById(book);
+            if (success) {
+                String action = newPinStatus == 1 ? "置顶" : "取消置顶";
+                log.info("{} 书籍成功: {}", action, book.getBookName());
+                return R.ok(action + "成功");
+            } else {
+                return R.error("操作失败");
+            }
+        } catch (Exception e) {
+            log.error("置顶操作失败", e);
+            return R.error("操作失败: " + e.getMessage());
         }
     }
 } 

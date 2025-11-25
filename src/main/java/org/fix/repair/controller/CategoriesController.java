@@ -98,7 +98,7 @@ public class CategoriesController {
     @GetMapping("/list")
     @ResponseBody
     public R<Map<String, Object>> listCategory(@RequestParam(defaultValue = "1") Integer page,
-                                               @RequestParam(defaultValue = "10") Integer size,
+                                               @RequestParam(defaultValue = "1000") Integer size,
                                                @RequestParam(required = false) String name) {
         try {
             // 创建分页对象

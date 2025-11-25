@@ -89,4 +89,10 @@ public class books {
     @TableField(value = "created_at")
     private Date createdat;
 
+    /**
+     * 是否置顶（0-否，1-是）
+     */
+    @TableField(value = "is_pinned")
+    private Integer isPinned;
+
 }
