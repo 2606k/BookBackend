@@ -500,7 +500,7 @@
                         </td>
                         <td>
                             <div class="btn-group-vertical btn-group-sm">
-                                <button class="btn btn-outline-info btn-action" onclick="viewOrderDetail(${order.id})">
+                                <button class="btn btn-outline-info btn-action" onclick="viewOrderDetail('${order.outTradeNo}')">
                                     <i class="bi bi-eye"></i> 详情
                                 </button>
                                 ${actionButtons}
@@ -528,7 +528,7 @@
             let buttons = '';
             
             if (order.status === '1') {
-                buttons += `<button class="btn btn-outline-danger btn-action mt-1" onclick="showRefundModal(${order.id})">
+                buttons += `<button class="btn btn-outline-danger btn-action mt-1" onclick="showRefundModal('${order.outTradeNo}')">
                     <i class="bi bi-arrow-return-left"></i> 执行退款
                 </button>`;
             }
@@ -607,14 +607,14 @@
             showAlert('已重新开始自动刷新，每5分钟检查一次新订单', 'success');
         }
 
-        function viewOrderDetail(orderId) {
+        function viewOrderDetail(outTradeNo) {
             // 显示加载状态
             $('#orderDetailBody').html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2">正在加载订单详情...</div></div>');
             $('#orderDetailModal').modal('show');
             
             // 调用API获取订单详情
             $.ajax({
-                url: `/appoint/detail/${orderId}`,
+                url: `/appoint/detail/${outTradeNo}`,
                 type: 'GET',
                 success: function(response) {
                     if (response.code === 200) {
@@ -715,18 +715,19 @@
                 '0': '已支付',
                 '1': '申请退款',
                 '2': '已退款',
-                '3': '已完成'
+                '3': '已完成',
+                '4': '待收货'
             };
             return statusMap[status] || '未知状态';
         }
 
-        function showRefundModal(orderId) {
-            currentRefundOrderId = orderId;
+        function showRefundModal(outTradeNo) {
+            currentRefundOrderId = outTradeNo;
             $('#refundReason').val('');
             
             // 加载订单信息
             $.ajax({
-                url: `/appoint/detail/${orderId}`,
+                url: `/appoint/detail/${outTradeNo}`,
                 type: 'GET',
                 success: function(response) {
                     if (response.code === 200) {
@@ -788,7 +789,7 @@
                 url: '/appoint/refund/execute',
                 type: 'POST',
                 data: {
-                    orderId: currentRefundOrderId
+                    outTradeNo: currentRefundOrderId
                     // reason: reason  // 不再传递退款原因
                 },
                 success: function(response) {
