@@ -38,7 +38,8 @@ public class BooksController {
                                                @RequestParam(required = false) Integer maxPrice,
                                                @RequestParam(required = false) String stockStatus,
                                                @RequestParam(required = false) Integer isPinned,
-                                               @RequestParam(required = false) Long categoryId) {
+                                               @RequestParam(required = false) Long categoryId,
+                                               @RequestParam(defaultValue = "default") String sortType) {
         try {
             // 创建分页对象
             Page<books> pageObj = new Page<>(page, size);
@@ -83,8 +84,32 @@ public class BooksController {
             }
             
             // 按置顶状态倒序，然后按创建时间倒序
-            queryWrapper.orderByDesc(books::getIsPinned)
-                       .orderByDesc(books::getCreatedat);
+//            queryWrapper.orderByDesc(books::getIsPinned)
+//                       .orderByDesc(books::getCreatedat);
+            // 根据sortType参数设置不同的排序逻辑
+            switch (sortType) {
+                case "newest": // 新书上架：只按最新时间排序
+                    if (isPinned != null) {
+                        queryWrapper.eq(books::getIsPinned, isPinned);
+                    }
+                    queryWrapper.orderByDesc(books::getCreatedat);
+                    break;
+
+                case "hot": // 热门推荐：只查询置顶书籍
+                    queryWrapper.eq(books::getIsPinned, 1);
+                    // 可以按置顶时间或创建时间排序
+                    queryWrapper.orderByDesc(books::getCreatedat);
+                    break;
+
+                case "default": // 所有书籍：默认排序（置顶靠前，再按时间）
+                default:
+                    if (isPinned != null) {
+                        queryWrapper.eq(books::getIsPinned, isPinned);
+                    }
+                    queryWrapper.orderByDesc(books::getIsPinned)
+                            .orderByDesc(books::getCreatedat);
+                    break;
+            }
             
             // 执行分页查询
             Page<books> result = booksService.page(pageObj, queryWrapper);
